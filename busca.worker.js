@@ -214,7 +214,7 @@ function concluirCarga(semModelo) {
 async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, limite = 30 }) {
   const filtro = (i) => {
     const m = normas[trechos[i][0]];
-    return (!soVigentes || m.situacao !== "revogada") && (!tipoNorma || m.tipo === tipoNorma);
+    return (!soVigentes || (m.situacao !== "revogada" && !m.superada)) && (!tipoNorma || m.tipo === tipoNorma);
   };
   const listas = [topo(bm25(consulta), 100, filtro)], pesos = [1];
   let modo = "palavras";

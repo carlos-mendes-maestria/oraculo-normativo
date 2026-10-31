@@ -110,6 +110,7 @@ function cartao(r, termos) {
       <span class="selo ${sit}">${sit}</span>
     </div>
     ${n.revogada_por ? `<p class="res-meta">Revogada pela ${escapar(n.revogada_por)}</p>` : ""}
+    ${n.superada ? `<p class="res-meta">Sem efeito atual: esta norma apenas alterou uma norma já revogada.</p>` : ""}
     ${n.ementa ? `<p class="res-meta">${escapar(n.ementa.slice(0, 200))}${n.ementa.length > 200 ? "…" : ""}</p>` : ""}
     ${r.estrutura ? `<p class="res-meta">${escapar(r.estrutura)}</p>` : ""}
     <div class="res-texto recolhido">${destacar(r.texto, termos)}</div>
@@ -143,7 +144,8 @@ const TRECHOS_ASSUNTO_COM_PERGUNTA = 8;   // com pergunta: 8 do assunto + ate 8 
 const TRECHOS_PERGUNTA = 8;
 
 function cabecalho(n, rotulo) {
-  return `${n.nome} – ${rotulo} (${situacao(n)}${n.revogada_por ? " pela " + n.revogada_por : ""}${n.data ? ", " + n.data : ""})`;
+  const sit = n.superada ? "sem efeito, alterou norma revogada" : situacao(n);
+  return `${n.nome} – ${rotulo} (${sit}${n.revogada_por ? " pela " + n.revogada_por : ""}${n.data ? ", " + n.data : ""})`;
 }
 
 // assunto: a busca mostrada na tela; pergunta: busca paralela (nao exibida) so para subsidiar o pedido
