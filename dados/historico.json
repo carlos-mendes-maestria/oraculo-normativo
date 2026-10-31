@@ -1,6 +1,41 @@
 [
  {
   "data": "2026-10-30",
+  "normas": 1764,
+  "vigentes": 1636,
+  "trechos": 28483,
+  "nota": "",
+  "adicionadas": [
+   "PRECEDENTES - IRDR TJPI 16.10",
+   "Provimento nº 217/2026",
+   "Provimento nº 54/2026",
+   "Provimento nº 55/2026",
+   "Provimento nº 56/2026",
+   "Provimento nº 57/2026",
+   "Provimento nº 58/2026",
+   "Provimento nº 59/2026",
+   "Provimento nº 60/2026",
+   "Provimento nº 61/2026",
+   "Provimento nº 62/2026",
+   "Provimento nº 63/2026",
+   "Provimento nº 198/2026",
+   "Resolução nº 566/2026",
+   "Resolução nº 567/2026",
+   "Resolução nº 568/2026",
+   "Resolução nº 569/2026",
+   "Resolução nº 570/2026",
+   "Resolução nº 572/2026",
+   "Resolução nº 573/2026",
+   "Resolução nº 574/2026",
+   "Resolução nº 575/2026"
+  ],
+  "retiradas": [],
+  "revogadas": [
+   "Resolução nº 20/2016"
+  ]
+ },
+ {
+  "data": "2026-10-30",
   "normas": 1742,
   "vigentes": 1615,
   "trechos": 28160,
