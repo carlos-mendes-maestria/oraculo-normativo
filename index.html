@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Oráculo normativo do TJPI</title>
+<meta name="description" content="Busca nas normas internas do Judiciário do Piauí, com os trechos originais e um prompt pronto para o seu assistente de IA.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f4e79'/%3E%3Cpath d='M6 12 16 6l10 6H6Zm2 2v9m5.300-9v9m5.400-9v9m5.300-9v9M5 25h22' fill='none' stroke='%23fff' stroke-width='1.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header class="topo">
+  <svg class="templo" viewBox="0 0 120 84" role="img" aria-label="Desenho de um templo grego" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M60 5 110 25H10L60 5Z"/>
+    <circle cx="60" cy="17" r="2.400"/>
+    <path d="M12 29h96M12 33h96"/>
+    <path d="M12 29v4M108 29v4"/>
+    <g>
+      <path d="M21 37v30M29 37v30M16 37h18M17 67h16"/>
+      <path d="M45 37v30M53 37v30M40 37h18M41 67h16"/>
+      <path d="M67 37v30M75 37v30M62 37h18M63 67h16"/>
+      <path d="M91 37v30M99 37v30M86 37h18M87 67h16"/>
+      <path d="M25 41v22M49 41v22M71 41v22M95 41v22" stroke-width=".8" opacity=".55"/>
+    </g>
+    <path d="M10 71h100M5 75h110M1 79h118"/>
+  </svg>
+  <h1>Oráculo normativo do TJPI</h1>
+  <p class="lema">Encontre nas normas internas do Judiciário do Piauí o que regula a sua dúvida e leve os trechos certos à inteligência artificial que você já usa.</p>
+</header>
+
+<main>
+  <section class="bloco">
+    <h2>Como funciona</h2>
+    <p>O oráculo não é um chat. Ele <strong>procura nas normas</strong> os trechos que tratam do seu tema e monta um prompt pronto, com instruções para a IA responder com base nesses textos e citar o artigo.</p>
+    <ol class="como">
+      <li>
+        <span class="num">1</span>
+        <div>
+          <h3>Informe o tema</h3>
+          <p>Use poucas palavras sobre o assunto, como <em>folga por plantão</em> ou <em>teletrabalho</em>.</p>
+        </div>
+      </li>
+      <li>
+        <span class="num">2</span>
+        <div>
+          <h3>Faça sua pergunta ou peça uma consulta geral</h3>
+          <p>Escreva o que quer saber, como <em>com quantos dias de antecedência preciso pedir a folga?</em>. Se não tiver uma pergunta específica, escolha a consulta geral e a IA fará uma explicação minuciosa do tema.</p>
+        </div>
+      </li>
+      <li>
+        <span class="num">3</span>
+        <div>
+          <h3>Leve o prompt à IA</h3>
+          <p>Copie o prompt, cole no ChatGPT, no Gemini ou no assistente que preferir e envie. A resposta traz o que vem das normas, com norma e artigo, e, em seção separada e com aviso, o que estiver fora delas.</p>
+        </div>
+      </li>
+    </ol>
+    <p class="confira">Os trechos encontrados também ficam na tela, com o selo de vigente ou revogada e o link para o texto oficial, para você conferir.</p>
+    <a href="busca.html" class="botao-principal">INICIAR BUSCA</a>
+    <p class="dica centro">Na primeira visita, a página baixa a base de normas (cerca de 12 MB) e a busca inteligente (cerca de 120 MB). Prefira o Wi-Fi. Depois disso, fica guardado no aparelho.</p>
+  </section>
+
+  <section class="bloco">
+    <h2>O que está na base</h2>
+    <dl class="numeros">
+      <div><dt id="n-normas">1.742</dt><dd>normas</dd></div>
+      <div><dt id="n-trechos">28.160</dt><dd>trechos pesquisáveis</dd></div>
+      <div><dt id="n-data">—</dt><dd>última atualização</dd></div>
+    </dl>
+    <p>Resoluções, provimentos, leis, súmulas, precedentes qualificados, regimentos e a Constituição do Estado, publicados no portal do TJPI, além do Estatuto dos Servidores (LC nº 13/1994), compilado pela ALEPI.</p>
+    <p><a href="atualizacoes.html" class="link-seta">Ver o histórico de atualizações →</a></p>
+  </section>
+
+  <section class="bloco">
+    <h2>Antes de usar</h2>
+    <ul class="avisos">
+      <li><strong>O texto oficial prevalece.</strong> Confira a norma pelo link antes de usar a informação em um ato ou decisão.</li>
+      <li><strong>A situação das normas pode estar incompleta.</strong> Revogações expressas são identificadas, mas revogações tácitas ou de artigos isolados podem não estar marcadas.</li>
+      <li><strong>A IA pode errar.</strong> A resposta depende do assistente escolhido; confira sempre os artigos citados.</li>
+      <li><strong>Não digite dados de processos ou de pessoas.</strong> A pergunta é enviada ao assistente de IA que você escolher.</li>
+      <li><strong>Normas digitalizadas</strong> podem ter erros de leitura (OCR).</li>
+    </ul>
+  </section>
+
+  <section class="bloco">
+    <h2>Para quem quer ir além</h2>
+    <p>Quem tem interesse em tecnologia poderá usar as mesmas normas com uma IA própria, sem depender de ChatGPT ou Gemini. As duas opções abaixo estão em preparação.</p>
+    <div class="opcoes">
+      <article class="opcao">
+        <h3>Notebook no Google Colab</h3>
+        <p>Roda uma IA gratuita nos servidores do Google, pelo navegador, com toda a base de normas. Exige conta Google e noções básicas de como executar um notebook Python.</p>
+        <p class="tamanho"><strong>Tamanho:</strong> a definir com a escolha do modelo. O download acontece no próprio Colab, não no seu aparelho.</p>
+        <span class="em-breve">Em breve</span>
+      </article>
+      <article class="opcao">
+        <h3>Modelo completo para uso local</h3>
+        <p>Baixa a IA e a base para rodar no seu computador, sem internet e sem enviar dados a terceiros. Indicado a quem tem um computador com boa memória.</p>
+        <p class="tamanho"><strong>Atenção ao tamanho:</strong> o download deve ter vários gigabytes. O valor exato e os requisitos serão informados com a escolha do modelo.</p>
+        <span class="em-breve">Em breve</span>
+      </article>
+    </div>
+  </section>
+
+  <section class="bloco">
+    <h2>Sobre o projeto</h2>
+    <p>Desenvolvido por <strong>Carlos Mendes de Sousa</strong>, Analista Judicial, Vara Única da Comarca de Batalha-PI, como iniciativa pessoal. Este site não representa o Tribunal de Justiça do Estado do Piauí.</p>
+    <p>Sugestões e correções: <a href="mailto:carlos.mendes@tjpi.jus.br">carlos.mendes@tjpi.jus.br</a></p>
+  </section>
+</main>
+
+<footer class="rodape">
+  <p><strong>Iniciativa independente, sem vínculo oficial com o Tribunal.</strong> Os textos vêm das normas publicadas no portal do TJPI e da ALEPI; o texto oficial publicado sempre prevalece.</p>
+</footer>
+
+<script>
+  // numeros da base: vem do indice gerado; se falhar, ficam os valores escritos na pagina
+  fetch("dados/indice_info.json?" + Date.now()).then((r) => r.json()).then((i) => {
+    document.getElementById("n-normas").textContent = i.normas.toLocaleString("pt-BR");
+    document.getElementById("n-trechos").textContent = i.trechos.toLocaleString("pt-BR");
+    const [a, m, d] = i.gerado_em.slice(0, 10).split("-");
+    document.getElementById("n-data").textContent = `${d}/${m}/${a}`;
+  }).catch(() => {});
+</script>
+</body>
+</html>

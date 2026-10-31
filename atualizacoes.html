@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Histórico de atualizações</title>
+<meta name="description" content="Histórico de atualizações da base de normas do Oráculo normativo do TJPI.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f4e79'/%3E%3Cpath d='M6 12 16 6l10 6H6Zm2 2v9m5.300-9v9m5.400-9v9m5.300-9v9M5 25h22' fill='none' stroke='%23fff' stroke-width='1.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="estilo.css">
+</head>
+<body>
+<header class="topo">
+  <h1><a href="index.html" class="titulo-link">Oráculo normativo do TJPI</a></h1>
+  <p class="nav-topo"><a href="index.html">← Início</a> · <a href="busca.html">Iniciar busca</a></p>
+</header>
+
+<main>
+  <section class="bloco">
+    <h2>Histórico de atualizações da base</h2>
+    <p>Cada entrada mostra quando a base mudou e quais normas foram adicionadas, retiradas ou passaram a constar como revogadas.</p>
+    <ol id="historico" class="historico"></ol>
+    <p id="vazio" class="dica" hidden>Não foi possível carregar o histórico agora.</p>
+  </section>
+</main>
+
+<footer class="rodape">
+  <p><strong>Iniciativa independente, sem vínculo oficial com o Tribunal.</strong> O texto oficial publicado sempre prevalece.</p>
+</footer>
+
+<script>
+  function lista(titulo, nomes) {
+    if (!nomes.length) return null;
+    const d = document.createElement("details"), s = document.createElement("summary"), ul = document.createElement("ul");
+    s.textContent = `${titulo} (${nomes.length})`;
+    nomes.forEach((n) => { const li = document.createElement("li"); li.textContent = n; ul.appendChild(li); });
+    d.append(s, ul);
+    return d;
+  }
+  fetch("dados/historico.json?" + Date.now()).then((r) => r.json()).then((h) => {
+    const ol = document.getElementById("historico");
+    h.forEach((e) => {
+      const li = document.createElement("li"), t = document.createElement("h3"), p = document.createElement("p");
+      const [a, m, d] = e.data.split("-");
+      t.textContent = `${d}/${m}/${a}`;
+      p.textContent = `${e.normas.toLocaleString("pt-BR")} normas (${e.vigentes.toLocaleString("pt-BR")} vigentes) e ${e.trechos.toLocaleString("pt-BR")} trechos. ${e.nota || ""}`;
+      li.append(t, p);
+      [["Normas adicionadas", e.adicionadas], ["Normas retiradas", e.retiradas], ["Passaram a revogadas", e.revogadas]]
+        .forEach(([ti, ns]) => { const x = lista(ti, ns); if (x) li.append(x); });
+      ol.appendChild(li);
+    });
+  }).catch(() => { document.getElementById("vazio").hidden = false; });
+</script>
+</body>
+</html>
