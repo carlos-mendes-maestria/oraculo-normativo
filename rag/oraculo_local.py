@@ -27,8 +27,8 @@ def main():
         subprocess.run(["ollama", "pull", m], check=True)
     import interface, oraculo_rag
     oraculo = oraculo_rag.Oraculo(DADOS, modelo=a.modelo, reescrever=not a.leve, reclassificar=not a.leve)
-    aviso = ("Neste computador, sem GPU dedicada, cada resposta pode levar vários minutos. "
-             "É um limite do equipamento, não um erro.")
+    aviso = ("Em computador sem placa de vídeo dedicada, cada resposta leva cerca de 15 minutos com o modelo padrão, "
+             "ou 6 minutos com o modelo gemma4:e4b. A demora vem dos limites do equipamento, não é um erro.")
     interface.criar(oraculo, aviso).launch(inbrowser=True, server_name="127.0.0.1", server_port=7860)
 
 

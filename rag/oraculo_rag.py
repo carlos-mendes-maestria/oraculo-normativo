@@ -323,13 +323,14 @@ class Oraculo:
                   "categoria. Quando duas normas tratarem do mesmo ponto, vale a mais recente; nunca use trecho marcado como "
                   "REVOGADA ou SEM EFEITO como regra atual; se o citar, diga que não vale mais. Se a norma estiver indicada como "
                   "alterada, procure a redação da norma que a alterou.")
-        pedido = (f'Logo abaixo do título de CADA parte, escreva: "{ident}".\n\n'
-                  f"PARTE 1 – VISÃO GERAL DO TEMA: explicação minuciosa do que as normas dispõem sobre o tema: quais tratam dele, "
-                  "para quem se aplicam, regras, requisitos, prazos, procedimentos e exceções. Não resuma.\n\n"
-                  "PARTE 2 – RESPOSTA À PERGUNTA: responda de forma completa e direta. Se os trechos não bastarem, diga o que ficou sem resposta.\n\n"
-                  'PARTE 3, somente se a Parte 2 não responder por completo: seção separada com o título exato "⚠️ ATENÇÃO – INFORMAÇÃO FORA '
-                  'DAS NORMAS DO ACERVO (CONFERIR)", com seu conhecimento geral, a fonte provável e o aviso de que isso precisa ser conferido '
-                  "no texto oficial. Se a Parte 2 bastar, não escreva a Parte 3 nem comente sobre ela.\n\n"
+        pedido = ("Organize a resposta com os títulos abaixo. Copie só o título, nunca o texto entre colchetes, que é instrução para você.\n\n"
+                  f'Logo abaixo do título de CADA parte, escreva: "{ident}".\n\n'
+                  "PARTE 1 – VISÃO GERAL DO TEMA\n[Explicação minuciosa do que as normas dispõem sobre o tema: quais tratam dele, "
+                  "para quem se aplicam, regras, requisitos, prazos, procedimentos e exceções. Não resuma.]\n\n"
+                  "PARTE 2 – RESPOSTA À PERGUNTA\n[Responda de forma completa e direta. Se os trechos não bastarem, diga o que ficou sem resposta.]\n\n"
+                  '⚠️ ATENÇÃO – INFORMAÇÃO FORA DAS NORMAS DO ACERVO (CONFERIR)\n[Use este título somente se a Parte 2 não responder por completo: '
+                  "traga seu conhecimento geral, a fonte provável e o aviso de que isso precisa ser conferido no texto oficial. "
+                  "Se a Parte 2 bastar, encerre nela, sem este título e sem comentar sobre ele.]\n\n"
                   f"PERGUNTA: {pergunta}\n\nTRECHOS:\n{trechos}" + (f"\n\nTRECHOS CITADOS PELOS ACIMA:\n{cit}" if cit else ""))
         msgs = [{"role": "system", "content": regras}]
         for p, r in list(historico)[-3:]:   # conversa anterior, sem os trechos, para entender perguntas de continuacao
