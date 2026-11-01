@@ -23,7 +23,17 @@ function destacar(texto, termos) {
   });
 }
 
-function situacao(n) { return n.situacao === "revogada" ? "revogada" : "vigente"; }
+function situacao(n) { return n.cancelada ? "cancelada" : n.situacao === "revogada" ? "revogada" : "vigente"; }
+
+// selo do cartao: nos precedentes vale a situacao do tema, nao a do arquivo do NUGEP que reune centenas de temas
+function seloDe(r) {
+  const sit = situacao(r.norma);
+  if (r.norma.tipo !== "Precedentes Qualificados") return { texto: sit, classe: sit === "vigente" ? "vigente" : "revogada" };
+  const t = r.situacaoTema;
+  if (!t) return { texto: "situação: ver o texto", classe: "tema" };
+  if (/^cancelad/i.test(t)) return { texto: t, classe: "revogada tema" };
+  return { texto: t, classe: /afetad|sobrest|julgamento|pendente|preliminar|revis/i.test(t) ? "tema" : "vigente tema" };
+}
 
 // painel de carregamento: barra + giro + "aguarde"; some quando a busca inteligente fica pronta
 function painel(titulo, pct, dica) {
@@ -102,13 +112,13 @@ function fazerConsultaGeral() {
 
 function cartao(r, termos) {
   const li = document.createElement("li");
-  li.className = `res ${situacao(r.norma)}`;
-  const n = r.norma, sit = situacao(n);
+  const n = r.norma, selo = seloDe(r);
+  li.className = `res ${/revogada/.test(selo.classe) ? "revogada" : ""}`;
   li.innerHTML = `
     <div class="res-cab">
       <span class="res-norma">${escapar(n.nome)}</span>
       <span class="res-rotulo">${escapar(r.rotulo)}</span>
-      <span class="selo ${sit}">${sit}</span>
+      <span class="selo ${selo.classe}">${escapar(selo.texto)}</span>
     </div>
     ${n.revogada_por ? `<p class="res-meta">Revogada pela ${escapar(n.revogada_por)}</p>` : ""}
     ${n.superada ? `<p class="res-meta">Sem efeito atual: esta norma apenas alterou uma norma já revogada.</p>` : ""}
@@ -144,8 +154,8 @@ const MAX_CITADOS_NA_IA = 8;
 const TRECHOS_ASSUNTO_COM_PERGUNTA = 8;   // com pergunta: 8 do assunto + ate 8 da pergunta
 const TRECHOS_PERGUNTA = 8;
 
-function cabecalho(n, rotulo) {
-  const sit = n.superada ? "sem efeito, alterou norma revogada" : situacao(n);
+function cabecalho(n, rotulo, sitTema) {
+  const sit = sitTema || (n.superada ? "sem efeito, alterou norma revogada" : situacao(n));
   return `${n.nome} – ${rotulo} (${sit}${n.revogada_por ? " pela " + n.revogada_por : ""}${n.data ? ", " + n.data : ""})`;
 }
 
@@ -155,7 +165,7 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados) {
   const blocoA = escolherParaIA(resAssunto, temPergunta ? TRECHOS_ASSUNTO_COM_PERGUNTA : TRECHOS_NA_IA);
   const blocoB = temPergunta ? escolherParaIA(resPergunta, TRECHOS_PERGUNTA, new Set(blocoA.map((r) => r.idx))) : [];
   const todos = [...blocoA, ...blocoB];
-  const texto = (lista, ini) => lista.map((r, i) => `[${ini + i + 1}] ${cabecalho(r.norma, r.rotulo)}\n${r.texto}`).join("\n\n");
+  const texto = (lista, ini) => lista.map((r, i) => `[${ini + i + 1}] ${cabecalho(r.norma, r.rotulo, r.situacaoTema)}\n${r.texto}`).join("\n\n");
   // artigos de outras normas citados nos trechos escolhidos ("art. 81 do Regimento Interno")
   const ordemCit = new Map(), enviados = new Set(todos.map((r) => r.idx));
   todos.forEach((r, i) => (r.cita || []).forEach((t) => {
@@ -218,13 +228,10 @@ const PRECEDENTES_NA_IA = 14;   // trechos no prompt, primeiro as sumulas e os p
 
 function ehPrecedente(r) { return TIPOS_PRECEDENTE.has(r.norma.tipo); }
 
-// a situacao de cada tema vem no proprio trecho; a da norma ("vigente") vale para o arquivo inteiro do NUGEP
 function situacaoPrecedente(r) {
   const n = r.norma;
-  if (n.tipo === "Sumulas") return /\bcancelada\b/i.test(r.texto) ? "cancelada" : situacao(n);   // o indice do portal traz todas como vigentes
-  if (n.tipo !== "Precedentes Qualificados") return n.superada ? "sem efeito, alterou norma revogada" : situacao(n) + (n.revogada_por ? " pela " + n.revogada_por : "");
-  const m = /Situa[çc][ãa]o:[ \t]*([^\n]+)/.exec(r.texto);
-  return m && !/^(Processos|Descri)/.test(m[1]) ? m[1].replace(/\s*\(Cont\.\)/, "").trim() : "não informada no trecho";
+  if (n.tipo === "Precedentes Qualificados") return r.situacaoTema || "não informada no trecho";
+  return n.superada ? "sem efeito, alterou norma revogada" : situacao(n) + (n.revogada_por ? " pela " + n.revogada_por : "");
 }
 
 function identificarPrecedente(r) {

@@ -1,5 +1,19 @@
 [
  {
+  "data": "2026-11-01",
+  "normas": 1764,
+  "vigentes": 1633,
+  "trechos": 28483,
+  "nota": "",
+  "adicionadas": [],
+  "retiradas": [],
+  "revogadas": [
+   "Súmula nº 16/2024",
+   "Súmula nº 17/2024",
+   "Súmula nº 24/2024"
+  ]
+ },
+ {
   "data": "2026-10-30",
   "normas": 1764,
   "vigentes": 1636,

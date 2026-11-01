@@ -10,6 +10,7 @@ const STOP = new Set(("a o as os e de do da dos das em no na nos nas um uma uns 
 let normas = [], trechos = [], vetores = null;
 let tf = [], comp = null, media = 0, inv = new Map(), idf = new Map();
 let extrator = null;
+let sitTema = [];   // situacao de cada trecho de precedente, conforme o proprio tema
 
 function dobrar(t) {
   return t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -169,6 +170,26 @@ function montarRemissoes() {
   });
 }
 
+// Cada tema traz sua linha "Situação:"; temas longos viram "(parte N)" e a linha fica em uma so parte.
+function montarSituacoes() {
+  sitTema = new Array(trechos.length).fill("");
+  let ini = 0;
+  const fechar = (fim) => {
+    if (normas[trechos[ini][0]].tipo !== "Precedentes Qualificados") return;
+    let sit = "";
+    for (let i = ini; i < fim && !sit; i++) {
+      const m = /Situa[çc][ãa]o:[ \t]*([^\n]+)/.exec(trechos[i][3]);
+      if (m && !/^(Processos|Descri)/.test(m[1])) sit = m[1].replace(/\s*\(Cont\.\)/, "").trim();
+    }
+    for (let i = ini; i < fim; i++) sitTema[i] = sit;
+  };
+  for (let i = 1; i <= trechos.length; i++) {
+    if (i < trechos.length && trechos[i][0] === trechos[ini][0] && /\(parte \d+\)$/.test(trechos[i][1])) continue;
+    fechar(i);
+    ini = i;
+  }
+}
+
 function normaCitada(tipoTxt, numTxt, anoTxt, origem) {
   const t = dobrar(tipoTxt);
   for (const [rx, arq] of APELIDOS) if (rx.test(t)) return porArquivo.get(arq);
@@ -206,6 +227,7 @@ function concluirCarga(semModelo) {
   const t0 = performance.now();
   montarBM25();
   montarRemissoes();
+  montarSituacoes();
   console.log(`[busca] indice de palavras montado em ${Math.round(performance.now() - t0)} ms`);
   postMessage({ tipo: "pronto", normas: normas.length, trechos: trechos.length });
   if (!semModelo) carregarModelo();
@@ -214,7 +236,7 @@ function concluirCarga(semModelo) {
 async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, limite = 30 }) {
   const filtro = (i) => {
     const m = normas[trechos[i][0]];
-    return (!soVigentes || (m.situacao !== "revogada" && !m.superada)) && (!tipoNorma || m.tipo === tipoNorma);
+    return (!soVigentes || (m.situacao !== "revogada" && !m.superada && !/^cancelad/i.test(sitTema[i]))) && (!tipoNorma || m.tipo === tipoNorma);
   };
   const listas = [topo(bm25(consulta), 100, filtro)], pesos = [1];
   let modo = "palavras";
@@ -232,7 +254,7 @@ async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, li
     if ((porNorma.get(n) || 0) >= maxPorNorma) continue;
     porNorma.set(n, (porNorma.get(n) || 0) + 1);
     const [, rotulo, estrutura, texto] = trechos[i];
-    res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto });
+    res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto, situacaoTema: sitTema[i] });
     if (res.length >= limite) break;
   }
   // artigos citados pelos primeiros resultados (a pagina escolhe quais entram no pedido a IA)
