@@ -120,6 +120,8 @@ button {
 button:hover:not(:disabled) { background: var(--primaria-forte); }
 button.secundario { background: transparent; color: var(--primaria); box-shadow: inset 0 0 0 1.5px var(--primaria); }
 button.secundario:hover:not(:disabled) { background: var(--primaria-fundo); }
+button.laranja:not(:disabled) { background: #c2570c; color: #fff; }
+button.laranja:hover:not(:disabled) { background: #a34a0a; }
 button:disabled { background: var(--borda); color: var(--suave); box-shadow: none; cursor: not-allowed; }
 .filtros { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--borda); font-size: .93rem; }
 .filtros label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
