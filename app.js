@@ -270,6 +270,9 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote)
 // Prompt de precedentes: so aparece quando ha sumula ou precedente qualificado entre os trechos da tela.
 const TIPOS_PRECEDENTE = new Set(["Sumulas", "Precedentes Qualificados", "Nota Técnica CIJEPI", "Guia NUGEP"]);
 const PRECEDENTES_NA_IA = 14;   // trechos no prompt, primeiro as sumulas e os precedentes
+const MIN_PERTINENTES = 3;
+const TRECHOS_POR_NOTA = 3;
+const VAGAS_SUMULA = 2;      // sumulas pertinentes abrem o prompt, antes dos temas e das notas
 
 function ehPrecedente(r) { return TIPOS_PRECEDENTE.has(r.norma.tipo); }
 
@@ -286,14 +289,33 @@ function identificarPrecedente(r) {
   return `${n.nome} – ${r.rotulo}`;
 }
 
+// tira do prompt o claramente sem relacao com a consulta; se sobrar muito pouco, nao corta nada
+function pertinentes(res) {
+  const ok = res.filter((r) => r.pertinente !== false);
+  return ok.length >= MIN_PERTINENTES ? ok : res;
+}
+
+function intercalar(a, b) {
+  const out = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++) { if (i < a.length) out.push(a[i]); if (i < b.length) out.push(b[i]); }
+  return out;
+}
+
 function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta, lote) {
-  // trechos da pergunta primeiro; a mesma sumula pode estar duas vezes no portal, por isso o filtro pelo texto
-  const vistos = new Set(), unicos = [...(resPergunta || []), ...resAssunto].filter((r) => {
+  // pergunta e tema dividem as vagas; a mesma sumula pode estar duas vezes no portal, por isso o filtro pelo texto
+  const vistos = new Set(), unicos = intercalar(resPergunta || [], resAssunto).filter((r) => {
     if (vistos.has(r.idx) || vistos.has(r.texto) || (lote && lote.excluir.has(r.idx))) return false;
     vistos.add(r.idx); vistos.add(r.texto);
     return true;
   });
-  const lista = [...unicos.filter(ehPrecedente), ...unicos.filter((r) => !ehPrecedente(r))].slice(0, PRECEDENTES_NA_IA);
+  const porNota = new Map();   // uma nota longa nao toma as vagas das outras; o restante fica para o "Estender busca"
+  const sumulas = unicos.filter((r) => r.norma.tipo === "Sumulas").slice(0, VAGAS_SUMULA);
+  const resto = unicos.filter((r) => !sumulas.includes(r));
+  const lista = [...sumulas, ...resto.filter(ehPrecedente), ...resto.filter((r) => !ehPrecedente(r))].filter((r) => {
+    if (r.norma.tipo !== "Nota Técnica CIJEPI") return true;
+    porNota.set(r.norma.arquivo, (porNota.get(r.norma.arquivo) || 0) + 1);
+    return porNota.get(r.norma.arquivo) <= TRECHOS_POR_NOTA;
+  }).slice(0, PRECEDENTES_NA_IA);
   if (!lista.length) return { texto: "", usados: [] };
   const inicio = lote ? lote.primeiro - 1 : 0;
   const trechos = lista.map((r, i) =>
@@ -360,8 +382,11 @@ async function perguntarIA(destino, precedentes = false, estender = false) {
     Object.assign(citados, m.citados);
   }
   const lote = estender ? { numero: envio.lote + 1, excluir: envio.enviados, primeiro: envio.enviados.size + 1 } : null;
-  const { texto: pedido, usados } = precedentes ? montarPedidoPrecedentes(ultimo.consulta, ultimo.res, pergunta, resP, lote)
-                                                : montarPedido(ultimo.consulta, ultimo.res, pergunta, resP, citados, lote);
+  const enxuto = precedentes || $("tipo").value === "precedentes-sumulas";
+  const resA = enxuto ? pertinentes(ultimo.res) : ultimo.res;
+  if (enxuto && resP) resP = pertinentes(resP);
+  const { texto: pedido, usados } = precedentes ? montarPedidoPrecedentes(ultimo.consulta, resA, pergunta, resP, lote)
+                                                : montarPedido(ultimo.consulta, resA, pergunta, resP, citados, lote);
   if (!usados.length) {
     $("ia-aviso").textContent = "Não há mais trechos nesta busca: todos os encontrados já foram enviados.";
     $("ia-aviso").hidden = false;
@@ -422,7 +447,7 @@ worker.onmessage = (e) => {
     ultimoTermos = m.termos;
     m.res.slice(0, NA_TELA).forEach((r) => lista.appendChild(cartao(r, m.termos)));
     $("contagem").textContent = m.res.length ? `${Math.min(m.res.length, NA_TELA)} mais relevantes` : "";
-    atualizarEstado(m.res.length ? "" : "Nada encontrado para este tema. Tente outras palavras ou desmarque “Só normas vigentes”.");
+    atualizarEstado(m.res.length ? (m.corrigida ? `Busca feita por: “${m.corrigida}”.` : "") : "Nada encontrado para este tema. Tente outras palavras ou desmarque “Só normas vigentes”.");
     atualizarFluxo();
   }
 };

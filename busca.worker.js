@@ -28,12 +28,15 @@ function termos(t) {
   return out;
 }
 
+function docDe([n, rot, est, txt]) {
+  return `${normas[n].nome} ${rot === "Preâmbulo" ? normas[n].ementa : ""} ${rot} ${est} ${txt}`;
+}
+
 function montarBM25() {
   comp = new Float32Array(trechos.length);
-  trechos.forEach(([n, rot, est, txt], i) => {
-    const doc = `${normas[n].nome} ${rot === "Preâmbulo" ? normas[n].ementa : ""} ${rot} ${est} ${txt}`;
+  trechos.forEach((t, i) => {
     const c = new Map();
-    for (const w of termos(doc)) c.set(w, (c.get(w) || 0) + 1);
+    for (const w of termos(docDe(t))) c.set(w, (c.get(w) || 0) + 1);
     let total = 0;
     for (const [w, k] of c) {
       total += k;
@@ -104,6 +107,43 @@ function expandir(consulta) {
   const f = dobrar(consulta);
   const extra = sinonimos.filter(([rx]) => rx.test(f)).map(([, a]) => a);
   return extra.length ? consulta + " " + extra.join(" ") : consulta;
+}
+
+// Erro de digitacao: palavra fora do vocabulario, com 6 letras ou mais, troca pela mais frequente a uma edicao de distancia.
+const MIN_LETRAS_CORRECAO = 6, MIN_TRECHOS_CORRECAO = 3;
+
+function umaEdicao(a, b) {
+  if (Math.abs(a.length - b.length) > 1 || a === b) return false;
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  if (a.length === b.length)
+    return a.slice(i + 1) === b.slice(i + 1) || (a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2));
+  return a.length < b.length ? a.slice(i) === b.slice(i + 1) : a.slice(i + 1) === b.slice(i);
+}
+
+function corrigir(consulta) {
+  return consulta.replace(/\p{L}+/gu, (p) => {
+    const [t] = termos(p);
+    if (!t || t.length < MIN_LETRAS_CORRECAO || inv.has(t)) return p;
+    let melhor = null, df = MIN_TRECHOS_CORRECAO * 2 - 1;   // cada trecho ocupa 2 posicoes da lista
+    for (const [w, l] of inv) if (l.length > df && umaEdicao(t, w)) { melhor = w; df = l.length; }
+    return melhor || p;
+  });
+}
+
+// Pertinencia para o prompt: a similaridade nao separa os trechos (estudo de 01/11), entao o criterio sao os termos.
+// O trecho precisa ter o termo mais raro da consulta ou metade do peso dela; um sinonimo do dicionario tambem vale.
+function avaliador(consulta, ampliada, fixos) {
+  const ts = [...new Set(termos(consulta))].filter((w) => idf.has(w));
+  const extras = termos(ampliada).filter((w) => !ts.includes(w));
+  const total = ts.reduce((s, w) => s + idf.get(w), 0);
+  const rara = ts.reduce((m, w) => (!m || idf.get(w) > idf.get(m) ? w : m), null);
+  return (i) => {
+    if (!rara || fixos.includes(i)) return true;
+    const doc = new Set(termos(docDe(trechos[i])));
+    return doc.has(rara) || extras.some((w) => doc.has(w)) ||
+      ts.reduce((s, w) => s + (doc.has(w) ? idf.get(w) : 0), 0) >= total / 2;
+  };
 }
 
 async function carregarModelo() {
@@ -255,7 +295,8 @@ function temasCitados(consulta) {
   return out;
 }
 
-async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, limite = 30 }) {
+async function buscar({ id, consulta: digitada, soVigentes, tipoNorma, maxPorNorma = 3, limite = 30 }) {
+  const consulta = corrigir(digitada);
   const filtro = (i) => {
     const m = normas[trechos[i][0]];
     return (!soVigentes || (m.situacao !== "revogada" && !m.superada && !/^(cancelad|prejudicad)/i.test(sitTema[i]))) && (!tipoNorma || m.tipo === tipoNorma || (tipoNorma === "precedentes-sumulas" && TIPOS_PRECEDENTE.has(m.tipo)));
@@ -271,13 +312,14 @@ async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, li
   if (ampliada !== consulta) { listas.push(topo(bm25(ampliada), 100, filtro)); pesos.push(PESO_AMPLIADA); }
   const fixos = tipoNorma && !/recedentes/.test(tipoNorma) ? [] : temasCitados(consulta);
   const ordem = [...new Set([...fixos, ...(listas.length > 1 ? rrf(listas, pesos) : listas[0])])];
+  const pertinente = avaliador(consulta, ampliada, fixos);
   const porNorma = new Map(), res = [];
   for (const i of ordem) {
     const n = trechos[i][0];
     const [, rotulo, estrutura, texto, tema] = trechos[i];
     if ((porNorma.get(n) || 0) >= (tema ? (tipoNorma ? limite : MAX_POR_TRIBUNAL) : maxPorNorma)) continue;
     porNorma.set(n, (porNorma.get(n) || 0) + 1);
-    res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto, situacaoTema: sitTema[i], linkTema: tema?.u, suspensao: tema?.n, estadoSuspensao: tema?.e });
+    res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto, situacaoTema: sitTema[i], linkTema: tema?.u, suspensao: tema?.n, estadoSuspensao: tema?.e, pertinente: pertinente(i) });
     if (res.length >= limite) break;
   }
   // artigos citados pelos primeiros resultados (a pagina escolhe quais entram no pedido a IA)
@@ -293,7 +335,7 @@ async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, li
       }
     }
   }
-  postMessage({ tipo: "resultado", id, modo, res, citados, termos: [...new Set(termos(consulta))] });
+  postMessage({ tipo: "resultado", id, modo, res, citados, termos: [...new Set(termos(consulta))], corrigida: consulta !== digitada ? consulta : "" });
 }
 
 onmessage = (e) => {
