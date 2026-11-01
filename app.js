@@ -271,7 +271,7 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote)
 const TIPOS_PRECEDENTE = new Set(["Sumulas", "Precedentes Qualificados", "Nota Técnica CIJEPI", "Guia NUGEP"]);
 const PRECEDENTES_NA_IA = 14;   // trechos no prompt, primeiro as sumulas e os precedentes
 const MIN_PERTINENTES = 3;
-const TRECHOS_POR_NOTA = 3;
+const TRECHOS_POR_NOTA = 2;
 const VAGAS_SUMULA = 2;      // sumulas pertinentes abrem o prompt, antes dos temas e das notas
 
 function ehPrecedente(r) { return TIPOS_PRECEDENTE.has(r.norma.tipo); }
