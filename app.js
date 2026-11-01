@@ -92,8 +92,14 @@ function atualizarFluxo() {
     : "Falta adicionar a pergunta ou escolher a consulta geral para liberar os botões.";
 }
 
+// estatistica de uso: so o nome do evento, nunca o texto da busca; bloqueador de anuncios nao quebra nada
+function contarEvento(nome) {
+  if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: nome, title: nome, event: true });
+}
+
 function adicionarTema(t) {
   if (!t) { $("q").focus(); return; }
+  contarEvento($("tipo").value === "precedentes-sumulas" ? "busca-somente-precedentes" : "busca-normas");
   if (!temaAdd || dobrar(t) !== dobrar(temaAdd)) {   // tema novo, pergunta nova
     perguntaAdd = null; consultaGeral = false; $("pergunta").value = "";
   }
@@ -433,10 +439,10 @@ $("so-precedentes").onclick = () => {   // liga e desliga: um novo clique volta 
   $("tipo").value = $("tipo").value === "precedentes-sumulas" ? "" : "precedentes-sumulas";
   filtroMudou();
 };
-$("ia-chatgpt").onclick = () => perguntarIA("https://chatgpt.com/");
-$("ia-gemini").onclick = () => perguntarIA("https://gemini.google.com/app");
-$("ia-copiar").onclick = () => perguntarIA(null);
-$("ia-precedentes").onclick = () => perguntarIA(null, true);
+$("ia-chatgpt").onclick = () => { contarEvento("abrir-chatgpt"); perguntarIA("https://chatgpt.com/"); };
+$("ia-gemini").onclick = () => { contarEvento("abrir-gemini"); perguntarIA("https://gemini.google.com/app"); };
+$("ia-copiar").onclick = () => { contarEvento("copiar-prompt"); perguntarIA(null); };
+$("ia-precedentes").onclick = () => { contarEvento("copiar-prompt-precedentes"); perguntarIA(null, true); };
 $("estender").onclick = () => perguntarIA(null, envio.precedentes, true);
 document.querySelectorAll("#exemplos button").forEach((b) => {
   b.onclick = () => { $("q").value = b.textContent; adicionarTema(b.textContent); };
