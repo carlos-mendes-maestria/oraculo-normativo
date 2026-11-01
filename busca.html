@@ -98,7 +98,8 @@
       <button id="estender" type="button" class="secundario" hidden disabled title="Gera um novo prompt com até 14 trechos ainda não enviados. Eles são menos semelhantes à pergunta: confira a pertinência.">Estender busca</button>
     </div>
     <p class="dica">Depois de copiar, <strong>cole</strong> na conversa da IA (Ctrl+V, ou toque longo › Colar) e envie.</p>
-    <p id="ia-aviso" class="ia-aviso" role="status" hidden></p>
+    <p class="ia-limite">Cada prompt leva até 14 trechos, os mais semelhantes à pergunta primeiro. Com mais texto, as IAs tendem a perder precisão e as versões gratuitas podem recusar mensagens longas. Para ver mais trechos, use “Estender busca”, que aparece depois de copiar um prompt.</p>
+      <p id="ia-aviso" class="ia-aviso" role="status" hidden></p>
     <textarea id="ia-texto" class="ia-texto" readonly hidden aria-label="Prompt para copiar"></textarea>
     <details>
       <summary>O que vai no prompt?</summary>

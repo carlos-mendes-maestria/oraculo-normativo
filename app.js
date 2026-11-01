@@ -162,8 +162,8 @@ function escolherParaIA(res, limite, excluir = new Set()) {
 }
 
 const MAX_CITADOS_NA_IA = 8;
-const TRECHOS_ASSUNTO_COM_PERGUNTA = 8;   // com pergunta: 8 do assunto + ate 8 da pergunta
-const TRECHOS_PERGUNTA = 8;
+const TRECHOS_ASSUNTO_COM_PERGUNTA = 7;   // com pergunta: 7 do assunto + ate 7 da pergunta
+const TRECHOS_PERGUNTA = 7;
 
 function cabecalho(n, rotulo, sitTema) {
   const sit = sitTema || (n.superada ? "sem efeito, alterou norma revogada" : situacao(n));
@@ -354,7 +354,7 @@ async function perguntarIA(destino, precedentes = false, estender = false) {
   if (lote) mostrarLote(usados);
   atualizarFluxo();
   const ok = await copiar(pedido);
-  const msg = ok ? estender ? `✓ Lote ${envio.lote} copiado, com ${usados.length} trechos novos, listados no fim dos resultados. Atenção: eles são menos semelhantes à pergunta; confira a pertinência. Cole na mesma conversa ou em outra.` : (destino ? "✓ Prompt copiado. Na aba que abriu, cole na conversa (Ctrl+V, ou toque longo › Colar) e envie."
+  const msg = ok ? estender ? `✓ Lote ${envio.lote} copiado, com ${usados.length} trechos novos, listados no fim dos resultados. Atenção: eles são menos semelhantes à pergunta; confira a pertinência. Cada prompt leva até 14 trechos porque, com mais texto, as IAs tendem a perder precisão e as versões gratuitas podem recusar mensagens longas. Cole na mesma conversa ou em outra.` : (destino ? "✓ Prompt copiado. Na aba que abriu, cole na conversa (Ctrl+V, ou toque longo › Colar) e envie."
                             : `✓ Prompt${precedentes ? " de precedentes" : ""} copiado. Cole no assistente de IA que preferir e envie.`)
                  : "O navegador não deixou copiar sozinho. O prompt está na caixa abaixo, já selecionado: copie (Ctrl+C, ou toque longo › Copiar) e cole na IA.";
   $("ia-aviso").textContent = msg;

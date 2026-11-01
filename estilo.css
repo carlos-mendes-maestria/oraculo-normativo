@@ -214,3 +214,4 @@ mark { background: var(--marca-texto); color: inherit; border-radius: 3px; paddi
   .motor { margin-left: 0; width: 100%; }
   .ia-botoes button { flex: 1 1 100%; }
 }
+.ia-limite { font-size: .85rem; color: var(--suave); margin: 8px 0 0; }
