@@ -18,6 +18,7 @@ N_CANDIDATOS = 50        # entram no reclassificador
 N_TRECHOS = 14           # vao ao LLM
 POR_NORMA = 3
 POR_TRIBUNAL = 6         # temas do STF e do STJ: um documento por tribunal, com milhares de temas
+POR_TRIBUNAL_COMUM = 2   # pergunta que nao fala em precedentes: os temas nao tomam o lugar das normas
 MAX_CITADOS = 6
 CTX = 16384
 
@@ -142,9 +143,6 @@ class Oraculo:
     def _fora_de_vigor(self, i):
         tema = self._tema(i)
         return bool(tema and re.match(r"cancelad|prejudicad", tema["s"], re.I))
-
-    def _precedente(self, i):
-        return self.normas[self.trechos[i][0]]["tipo"] in ("Precedentes Qualificados", "Sumulas")
 
     def _valido(self, i, so_vigentes):
         n = self.normas[self.trechos[i][0]]
@@ -333,9 +331,10 @@ class Oraculo:
             fundidos = [i for _, i in sorted(zip(notas, fundidos), key=lambda x: -x[0])]
         cont, escolhidos = Counter(), []
         fixos = self._temas_citados(pergunta)
+        limite_tema = POR_TRIBUNAL if self._quer_precedentes(pergunta) else POR_TRIBUNAL_COMUM
         for i in fixos + [i for i in fundidos if i not in fixos]:
             n = self.trechos[i][0]
-            if cont[n] < (POR_TRIBUNAL if self._tema(i) else POR_NORMA):
+            if cont[n] < (limite_tema if self._tema(i) else POR_NORMA):
                 cont[n] += 1
                 escolhidos.append(i)
                 if len(escolhidos) >= N_TRECHOS:
@@ -355,7 +354,7 @@ class Oraculo:
                   "REVOGADA ou SEM EFEITO como regra atual; se o citar, diga que não vale mais. Se a norma estiver indicada como "
                   "alterada, procure a redação da norma que a alterou. Nos precedentes, vale a situação do próprio tema: tema "
                   "CANCELADO ou PREJUDICADO não é regra atual, e tema afetado, em julgamento ou sem tese ainda não tem tese definitiva.")
-        if self._quer_precedentes(pergunta, escolhidos):
+        if self._quer_precedentes(pergunta):
             return self._mensagens(regras, self._pedido_precedentes(pergunta, tema, trechos, cit), historico)
         pedido = ("Organize a resposta com os títulos abaixo. Copie só o título, nunca o texto entre colchetes, que é instrução para você.\n\n"
                   f'Logo abaixo do título de CADA parte, escreva: "{ident}".\n\n'
@@ -376,9 +375,9 @@ class Oraculo:
 
     RX_PRECEDENTE = re.compile(r"\b(precedentes?|temas?\s+\d|repetitivos?|repercuss[ãa]o geral|s[úu]mulas?|irdr|iac|tese firmada|stf|stj)\b", re.I)
 
-    def _quer_precedentes(self, pergunta, escolhidos):
-        """Pergunta sobre precedentes, ou metade dos 6 melhores trechos e de precedentes: resposta em fichas."""
-        return bool(self.RX_PRECEDENTE.search(pergunta)) or sum(self._precedente(i) for i in escolhidos[:6]) >= 3
+    def _quer_precedentes(self, pergunta):
+        """So a pergunta decide: pelos trechos, uma duvida comum sobre ferias viraria fichas de temas de outras carreiras."""
+        return bool(self.RX_PRECEDENTE.search(pergunta))
 
     def _pedido_precedentes(self, pergunta, tema, trechos, cit):
         """Mesmas fichas do botao "Copiar prompt de precedentes" do site."""
