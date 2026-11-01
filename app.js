@@ -62,7 +62,8 @@ function atualizarFluxo() {
   $("pergunta").disabled = !temaOk;
   $("ir-p").disabled = !temaOk;
   $("ir-geral").disabled = !temaOk;
-  ["ia-chatgpt", "ia-gemini", "ia-copiar"].forEach((id) => { $(id).disabled = !pronto; });
+  ["ia-chatgpt", "ia-gemini", "ia-copiar", "ia-precedentes"].forEach((id) => { $(id).disabled = !pronto; });
+  $("ia-precedentes").hidden = !(pronto && ultimo.res.slice(0, NA_TELA).some(ehPrecedente));
   $("passo2").hidden = !pronto;
   $("resultados").hidden = !pronto;
   $("exemplos").hidden = !!temaAdd;
@@ -211,6 +212,64 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados) {
   ].join("\n");
 }
 
+// Prompt de precedentes: so aparece quando ha sumula ou precedente qualificado entre os trechos da tela.
+const TIPOS_PRECEDENTE = new Set(["Sumulas", "Precedentes Qualificados"]);
+const PRECEDENTES_NA_IA = 14;   // trechos no prompt, primeiro as sumulas e os precedentes
+
+function ehPrecedente(r) { return TIPOS_PRECEDENTE.has(r.norma.tipo); }
+
+// a situacao de cada tema vem no proprio trecho; a da norma ("vigente") vale para o arquivo inteiro do NUGEP
+function situacaoPrecedente(r) {
+  const n = r.norma;
+  if (n.tipo === "Sumulas") return /\bcancelada\b/i.test(r.texto) ? "cancelada" : situacao(n);   // o indice do portal traz todas como vigentes
+  if (n.tipo !== "Precedentes Qualificados") return n.superada ? "sem efeito, alterou norma revogada" : situacao(n) + (n.revogada_por ? " pela " + n.revogada_por : "");
+  const m = /Situa[çc][ãa]o:[ \t]*([^\n]+)/.exec(r.texto);
+  return m && !/^(Processos|Descri)/.test(m[1]) ? m[1].replace(/\s*\(Cont\.\)/, "").trim() : "não informada no trecho";
+}
+
+function identificarPrecedente(r) {
+  const n = r.norma;
+  if (n.tipo === "Sumulas") return `Súmula do TJPI nº ${n.numero}/${n.ano}`;
+  if (n.tipo === "Precedentes Qualificados") return `${r.rotulo} (${n.nome})`;
+  return `${n.nome} – ${r.rotulo}`;
+}
+
+function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta) {
+  // trechos da pergunta primeiro; a mesma sumula pode estar duas vezes no portal, por isso o filtro pelo texto
+  const vistos = new Set(), unicos = [...(resPergunta || []), ...resAssunto].filter((r) => {
+    if (vistos.has(r.idx) || vistos.has(r.texto)) return false;
+    vistos.add(r.idx); vistos.add(r.texto);
+    return true;
+  });
+  const lista = [...unicos.filter(ehPrecedente), ...unicos.filter((r) => !ehPrecedente(r))].slice(0, PRECEDENTES_NA_IA);
+  const trechos = lista.map((r, i) =>
+    `[${i + 1}] ${identificarPrecedente(r)} | Situação: ${situacaoPrecedente(r)} | Link oficial: ${r.norma.url || "não informado"}\n${r.texto}`).join("\n\n");
+  return [
+    "Você é um assistente jurídico especializado em precedentes qualificados (TJPI, STJ e STF), consultados a partir da base normativa do Tribunal de Justiça do Estado do Piauí (TJPI).",
+    `TEMA: ${assunto}`,
+    `PERGUNTA: ${pergunta || "consulta geral sobre o tema"}`,
+    "Abaixo estão trechos de súmulas e de informações sobre precedentes qualificados do TJPI, do STJ e do STF (e, se houver, de outras normas internas) constantes da base do TJPI, localizados por busca semântica no Oráculo Normativo. Responda EXCLUSIVAMENTE com base nesses trechos.",
+    "TRECHOS ENCONTRADOS:",
+    trechos,
+    "INSTRUÇÕES:",
+    "1. Identifique quais trechos tratam de fato da pergunta. Ignore os que não tratam e diga quais foram ignorados.",
+    "2. Para CADA precedente ou súmula pertinente, apresente a ficha abaixo, nesta ordem e com estes títulos:",
+    " - Tribunal: TJPI, STJ ou STF.",
+    " - Identificação: espécie (por exemplo, súmula, súmula vinculante, tema de repercussão geral, tema de recurso repetitivo, IRDR, IAC ou outra indicada no trecho), número do tema ou da súmula, processo paradigma, órgão julgador e data, se constarem.",
+    " - Questão jurídica: a controvérsia resolvida, em uma ou duas frases.",
+    " - Tese firmada: transcrição LITERAL, entre aspas, sem paráfrase.",
+    " - Situação: vigente, revisada, superada, cancelada ou pendente de julgamento (com ou sem suspensão de processos), conforme o trecho. Se o trecho não informar, escreva \"não informada no trecho; conferir no texto oficial\".",
+    " - Alcance e efeitos: a quem e a quais processos se aplica e o caráter vinculante, apenas se constar do trecho.",
+    " - Dispositivos legais relacionados: os citados no trecho.",
+    " - Fonte: referência [n] e link oficial.",
+    "3. Se houver precedentes de mais de um tribunal, apresente as fichas na ordem STF, STJ, TJPI.",
+    "4. Depois das fichas, escreva \"Aplicação à pergunta\": explique em linguagem clara como a(s) tese(s) responde(m) à pergunta e aponte elementos que poderiam afastar a aplicação (distinção), se o próprio trecho os indicar.",
+    "5. Se nenhum trecho contiver precedente ou súmula pertinente, diga isso claramente. Não invente número, data, tese ou órgão julgador.",
+    "6. Se julgar útil trazer informação que não está nos trechos (por exemplo, precedentes ou julgados que não aparecem nos trechos), faça isso SOMENTE em seção separada, intitulada \"Informações complementares (fora da base do TJPI)\", com a advertência: \"Estas informações não constam dos trechos fornecidos e devem ser conferidas em fonte oficial.\"",
+    "7. Encerre com: \"O texto oficial do precedente, disponível no link indicado, prevalece sobre este resumo.\"",
+  ].join("\n");
+}
+
 // busca da pergunta: mesma busca do worker, mas o resultado nao vai para a tela
 let idOculto = 1e6;
 const pendentes = new Map();
@@ -231,7 +290,7 @@ async function copiar(texto) {
   }
 }
 
-async function perguntarIA(destino) {
+async function perguntarIA(destino, precedentes = false) {
   if (!ultimo) return;
   // a busca da pergunta leva menos de 1 s: a copia e a nova aba ainda contam como acao do clique
   // (abrir a aba antes tiraria o foco da pagina e o navegador recusaria a copia)
@@ -242,10 +301,11 @@ async function perguntarIA(destino) {
     resP = m.res;
     Object.assign(citados, m.citados);
   }
-  const pedido = montarPedido(ultimo.consulta, ultimo.res, pergunta, resP, citados);
+  const pedido = precedentes ? montarPedidoPrecedentes(ultimo.consulta, ultimo.res, pergunta, resP)
+                             : montarPedido(ultimo.consulta, ultimo.res, pergunta, resP, citados);
   const ok = await copiar(pedido);
   const msg = ok ? (destino ? "✓ Prompt copiado. Na aba que abriu, cole na conversa (Ctrl+V, ou toque longo › Colar) e envie."
-                            : "✓ Prompt copiado. Cole no assistente de IA que preferir e envie.")
+                            : `✓ Prompt${precedentes ? " de precedentes" : ""} copiado. Cole no assistente de IA que preferir e envie.`)
                  : "O navegador não deixou copiar sozinho. O prompt está na caixa abaixo, já selecionado: copie (Ctrl+C, ou toque longo › Copiar) e cole na IA.";
   $("ia-aviso").textContent = msg;
   $("ia-aviso").hidden = false;
@@ -308,6 +368,7 @@ $("vigentes").onchange = $("tipo").onchange = () => { if (temaAdd) buscar(temaAd
 $("ia-chatgpt").onclick = () => perguntarIA("https://chatgpt.com/");
 $("ia-gemini").onclick = () => perguntarIA("https://gemini.google.com/app");
 $("ia-copiar").onclick = () => perguntarIA(null);
+$("ia-precedentes").onclick = () => perguntarIA(null, true);
 document.querySelectorAll("#exemplos button").forEach((b) => {
   b.onclick = () => { $("q").value = b.textContent; adicionarTema(b.textContent); };
 });
