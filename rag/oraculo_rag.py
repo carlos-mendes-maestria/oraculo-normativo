@@ -17,6 +17,7 @@ REPO_RERANK = "onnx-community/bge-reranker-v2-m3-ONNX"
 N_CANDIDATOS = 50        # entram no reclassificador
 N_TRECHOS = 14           # vao ao LLM
 POR_NORMA = 3
+POR_TRIBUNAL = 6         # temas do STF e do STJ: um documento por tribunal, com milhares de temas
 MAX_CITADOS = 6
 CTX = 16384
 
@@ -118,7 +119,7 @@ class Oraculo:
         self.mudou = not os.path.exists(marca) or open(marca).read() != info["versao"]
         if self.mudou:   # base nova: descarta os dados antigos (os arquivos vet_* nunca mudam e ficam)
             for n in os.listdir(self.pasta):
-                if n.startswith("dados_"):
+                if n.startswith("dados_") or n == "rag_indice.json":
                     os.remove(os.path.join(self.pasta, n))
         self.normas = json.loads(self._baixar("dados/normas.json"))
         self.grupos = json.loads(self._baixar("dados/sinonimos.json"))["grupos"]
@@ -133,14 +134,26 @@ class Oraculo:
     def _texto_rag(self, t):
         return " | ".join(p for p in (self.normas[t[0]]["nome"], t[1], t[2], t[3]) if p)
 
+    def _tema(self, i):
+        """Tema do STF ou do STJ: {"s": situacao, "u": link}. Normas e demais trechos nao tem."""
+        t = self.trechos[i]
+        return t[4] if len(t) > 4 else None
+
+    def _fora_de_vigor(self, i):
+        tema = self._tema(i)
+        return bool(tema and re.match(r"cancelad|prejudicad", tema["s"], re.I))
+
+    def _precedente(self, i):
+        return self.normas[self.trechos[i][0]]["tipo"] in ("Precedentes Qualificados", "Sumulas")
+
     def _valido(self, i, so_vigentes):
         n = self.normas[self.trechos[i][0]]
-        return not so_vigentes or (n["situacao"] != "revogada" and not n.get("superada"))
+        return not so_vigentes or (n["situacao"] != "revogada" and not n.get("superada") and not self._fora_de_vigor(i))
 
     # ------------------------------------------------------------ palavras
     def _montar_bm25(self):
         self.inv, self.comp = defaultdict(list), np.zeros(len(self.trechos), dtype=np.float32)
-        for i, (n, rot, est, txt) in enumerate(self.trechos):
+        for i, (n, rot, est, txt, *_) in enumerate(self.trechos):
             d = f"{self.normas[n]['nome']} {self.normas[n]['ementa'] if rot == 'Preâmbulo' else ''} {rot} {est} {txt}"
             c = Counter(termos(d))
             self.comp[i] = sum(c.values())
@@ -184,7 +197,7 @@ class Oraculo:
                     continue
                 n = self.normas[t[0]]
                 ids.append(str(i)); vs.append(v.astype(np.float32).tolist())
-                metas.append({"tipo": n["tipo"], "ano": str(n["ano"]), "situacao": n["situacao"],
+                metas.append({"tipo": n["tipo"], "ano": str(n["ano"]), "situacao": "revogada" if self._fora_de_vigor(i) else n["situacao"],
                               "superada": bool(n.get("superada"))})
             for k in range(0, len(ids), 4000):
                 col.add(ids=ids[k:k + 4000], embeddings=vs[k:k + 4000], metadatas=metas[k:k + 4000])
@@ -209,7 +222,7 @@ class Oraculo:
         if "Resolucao_02_1987" in self.por_arquivo:
             self.por_chave[("Resolucoes", 2, "1987")] = [self.por_arquivo["Resolucao_02_1987"]]
         self.artigos = defaultdict(lambda: defaultdict(list))
-        for i, (n, rot, _, _) in enumerate(self.trechos):
+        for i, (n, rot, *_) in enumerate(self.trechos):
             m = re.match(r"Art\. (\d+)", rot)
             if m and len(self.artigos[n][m.group(1)]) < 2:
                 self.artigos[n][m.group(1)].append(i)
@@ -245,7 +258,7 @@ class Oraculo:
     def _citados(self, escolhidos):
         out = []
         for i in escolhidos:
-            origem, _, _, texto = self.trechos[i]
+            origem, _, _, texto = self.trechos[i][:4]
             for m in self.RX.finditer(texto):
                 n = self._norma_citada(m.group(3), m.group(4), m.group(5) or m.group(6), origem)
                 if n is None or self.normas[n]["situacao"] == "revogada" or self.normas[n].get("superada"):
@@ -262,6 +275,10 @@ class Oraculo:
 
     def cabecalho(self, i):
         n, rot = self.normas[self.trechos[i][0]], self.trechos[i][1]
+        tema = self._tema(i)
+        if tema:   # vale a situacao do proprio tema, nao a do documento que reune os temas do tribunal
+            sit = tema["s"].upper() if self._fora_de_vigor(i) else tema["s"]
+            return f"{n['nome']} – {rot} (situação do tema: {sit}; fonte: {n['fonte']}, coletado em {n['coletado']}; link oficial: {tema['u']})"
         sit = "REVOGADA" if n["situacao"] == "revogada" else "SEM EFEITO, alterou norma revogada" if n.get("superada") else "vigente"
         por = f" pela {n['revogada_por']}" if n.get("revogada_por") else ""
         data = f", {n['data']}" if n.get("data") else ""
@@ -304,7 +321,7 @@ class Oraculo:
         cont, escolhidos = Counter(), []
         for i in fundidos:
             n = self.trechos[i][0]
-            if cont[n] < POR_NORMA:
+            if cont[n] < (POR_TRIBUNAL if self._tema(i) else POR_NORMA):
                 cont[n] += 1
                 escolhidos.append(i)
                 if len(escolhidos) >= N_TRECHOS:
@@ -322,7 +339,10 @@ class Oraculo:
                   "(Resolução nº X/AAAA, art. Y). Regras gerais dos servidores ou dos magistrados valem para todos os cargos da "
                   "categoria. Quando duas normas tratarem do mesmo ponto, vale a mais recente; nunca use trecho marcado como "
                   "REVOGADA ou SEM EFEITO como regra atual; se o citar, diga que não vale mais. Se a norma estiver indicada como "
-                  "alterada, procure a redação da norma que a alterou.")
+                  "alterada, procure a redação da norma que a alterou. Nos precedentes, vale a situação do próprio tema: tema "
+                  "CANCELADO ou PREJUDICADO não é regra atual, e tema afetado, em julgamento ou sem tese ainda não tem tese definitiva.")
+        if self._quer_precedentes(pergunta, escolhidos):
+            return self._mensagens(regras, self._pedido_precedentes(pergunta, tema, trechos, cit), historico)
         pedido = ("Organize a resposta com os títulos abaixo. Copie só o título, nunca o texto entre colchetes, que é instrução para você.\n\n"
                   f'Logo abaixo do título de CADA parte, escreva: "{ident}".\n\n'
                   "PARTE 1 – VISÃO GERAL DO TEMA\n[Explicação minuciosa do que as normas dispõem sobre o tema: quais tratam dele, "
@@ -332,10 +352,38 @@ class Oraculo:
                   "traga seu conhecimento geral, a fonte provável e o aviso de que isso precisa ser conferido no texto oficial. "
                   "Se a Parte 2 bastar, encerre nela, sem este título e sem comentar sobre ele.]\n\n"
                   f"PERGUNTA: {pergunta}\n\nTRECHOS:\n{trechos}" + (f"\n\nTRECHOS CITADOS PELOS ACIMA:\n{cit}" if cit else ""))
+        return self._mensagens(regras, pedido, historico)
+
+    def _mensagens(self, regras, pedido, historico):
         msgs = [{"role": "system", "content": regras}]
         for p, r in list(historico)[-3:]:   # conversa anterior, sem os trechos, para entender perguntas de continuacao
             msgs += [{"role": "user", "content": p}, {"role": "assistant", "content": r[:1500]}]
         return msgs + [{"role": "user", "content": pedido}]
+
+    RX_PRECEDENTE = re.compile(r"\b(precedentes?|temas?\s+\d|repetitivos?|repercuss[ãa]o geral|s[úu]mulas?|irdr|iac|tese firmada|stf|stj)\b", re.I)
+
+    def _quer_precedentes(self, pergunta, escolhidos):
+        """Pergunta sobre precedentes, ou metade dos 6 melhores trechos e de precedentes: resposta em fichas."""
+        return bool(self.RX_PRECEDENTE.search(pergunta)) or sum(self._precedente(i) for i in escolhidos[:6]) >= 3
+
+    def _pedido_precedentes(self, pergunta, tema, trechos, cit):
+        """Mesmas fichas do botao "Copiar prompt de precedentes" do site."""
+        return ("Responda com base nos trechos abaixo. Copie só os títulos, nunca o texto entre colchetes, que é instrução para você.\n\n"
+                f"Tema: {tema} | Pergunta: {pergunta}\n\n"
+                "Identifique quais trechos tratam de fato da pergunta e ignore os demais. Para CADA precedente ou súmula pertinente, "
+                "apresente esta ficha, na ordem STF, STJ, TJPI:\n"
+                "Tribunal: [TJPI, STJ ou STF]\n"
+                "Identificação: [espécie, número do tema ou da súmula, processo paradigma, órgão julgador e data, se constarem]\n"
+                "Questão jurídica: [a controvérsia, em uma ou duas frases]\n"
+                "Tese firmada: [transcrição LITERAL, entre aspas, sem paráfrase; se não houver, diga que ainda não há tese]\n"
+                "Situação: [a situação do próprio tema, conforme o cabeçalho do trecho]\n"
+                "Alcance e efeitos: [a quem se aplica e caráter vinculante, apenas se constar do trecho]\n"
+                "Dispositivos legais relacionados: [os citados no trecho]\n"
+                "Fonte: [referência [n] e link oficial]\n\n"
+                "Depois das fichas, escreva \"Aplicação à pergunta\": explique em linguagem clara como a tese responde à pergunta. "
+                "Se nenhum trecho for pertinente, diga isso. Não invente número, data, tese ou órgão julgador. "
+                "Encerre com: \"O texto oficial do precedente, disponível no link indicado, prevalece sobre este resumo.\"\n\n"
+                f"PERGUNTA: {pergunta}\n\nTRECHOS:\n{trechos}" + (f"\n\nTRECHOS CITADOS PELOS ACIMA:\n{cit}" if cit else ""))
 
     def pergunta_completa(self, pergunta, historico):
         """'E para magistrados?' vira uma pergunta completa, usando a conversa anterior."""
@@ -353,7 +401,7 @@ class Oraculo:
         """Gera pedacos da resposta; ao fim, devolve a lista de normas consultadas em self.fontes."""
         completa = self.pergunta_completa(pergunta, historico)
         tema, esc, cit = self.recuperar(completa, so_vigentes)
-        self.fontes = [(self.cabecalho(i), self.normas[self.trechos[i][0]]["url"]) for i in esc + cit]
+        self.fontes = [(self.cabecalho(i), (self._tema(i) or {}).get("u") or self.normas[self.trechos[i][0]]["url"]) for i in esc + cit]
         r = chamar_ollama("/api/chat", {"model": self.modelo, "stream": True, "think": False,
                                         "messages": self.montar_mensagens(completa, tema, esc, cit, historico),
                                         "options": {"num_ctx": CTX, "num_predict": 3000, "temperature": 0.2}}, stream=True)

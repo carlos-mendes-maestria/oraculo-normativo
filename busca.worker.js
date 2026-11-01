@@ -11,6 +11,7 @@ let normas = [], trechos = [], vetores = null;
 let tf = [], comp = null, media = 0, inv = new Map(), idf = new Map();
 let extrator = null;
 let sitTema = [];   // situacao de cada trecho de precedente, conforme o proprio tema
+const MAX_POR_TRIBUNAL = 8;   // temas do STF e do STJ sao um documento por tribunal, com milhares de temas
 
 function dobrar(t) {
   return t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -188,6 +189,7 @@ function montarSituacoes() {
     fechar(i);
     ini = i;
   }
+  trechos.forEach((t, i) => { if (t[4]) sitTema[i] = t[4].s; });   // STF e STJ: situacao vinda da fonte oficial
 }
 
 function normaCitada(tipoTxt, numTxt, anoTxt, origem) {
@@ -236,7 +238,7 @@ function concluirCarga(semModelo) {
 async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, limite = 30 }) {
   const filtro = (i) => {
     const m = normas[trechos[i][0]];
-    return (!soVigentes || (m.situacao !== "revogada" && !m.superada && !/^cancelad/i.test(sitTema[i]))) && (!tipoNorma || m.tipo === tipoNorma || (tipoNorma === "precedentes-sumulas" && (m.tipo === "Sumulas" || m.tipo === "Precedentes Qualificados")));
+    return (!soVigentes || (m.situacao !== "revogada" && !m.superada && !/^(cancelad|prejudicad)/i.test(sitTema[i]))) && (!tipoNorma || m.tipo === tipoNorma || (tipoNorma === "precedentes-sumulas" && (m.tipo === "Sumulas" || m.tipo === "Precedentes Qualificados")));
   };
   const listas = [topo(bm25(consulta), 100, filtro)], pesos = [1];
   let modo = "palavras";
@@ -251,10 +253,10 @@ async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, li
   const porNorma = new Map(), res = [];
   for (const i of ordem) {
     const n = trechos[i][0];
-    if ((porNorma.get(n) || 0) >= maxPorNorma) continue;
+    const [, rotulo, estrutura, texto, tema] = trechos[i];
+    if ((porNorma.get(n) || 0) >= (tema ? MAX_POR_TRIBUNAL : maxPorNorma)) continue;
     porNorma.set(n, (porNorma.get(n) || 0) + 1);
-    const [, rotulo, estrutura, texto] = trechos[i];
-    res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto, situacaoTema: sitTema[i] });
+    res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto, situacaoTema: sitTema[i], linkTema: tema?.u });
     if (res.length >= limite) break;
   }
   // artigos citados pelos primeiros resultados (a pagina escolhe quais entram no pedido a IA)

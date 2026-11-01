@@ -209,7 +209,7 @@ mark { background: var(--marca-texto); color: inherit; border-radius: 3px; paddi
   .etapa.ativa { padding: 11px; }
   .etapa h2, .passo-titulo h2 { font-size: 1.1rem; }
   .linha-campo { flex-direction: column; }
-  .filtros select { flex: 1; min-width: 0; }
+  .filtros select { flex: 1 1 100%; min-width: 0; }
   .filtro-destaque { flex: 1 1 100%; }
   .motor { margin-left: 0; width: 100%; }
   .ia-botoes button { flex: 1 1 100%; }

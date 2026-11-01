@@ -5,6 +5,7 @@ const worker = new Worker("busca.worker.js", { type: "module" });
 const NA_TELA = 10;          // cartoes mostrados (ate 3 por norma)
 const TRECHOS_NA_IA = 14;    // consulta geral: mais trechos, para a explicacao minuciosa (ate 2 por norma)
 const POR_NORMA_NA_IA = 2;
+const POR_TRIBUNAL_NA_IA = 4;   // temas do STF e do STJ: um documento por tribunal
 let ultimo = null, contador = 0, baseOk = false, modeloOk = false, modeloMsg = "";
 
 function dobrar(t) { return t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
@@ -31,8 +32,9 @@ function seloDe(r) {
   if (r.norma.tipo !== "Precedentes Qualificados") return { texto: sit, classe: sit === "vigente" ? "vigente" : "revogada" };
   const t = r.situacaoTema;
   if (!t) return { texto: "situação: ver o texto", classe: "tema" };
-  if (/^cancelad/i.test(t)) return { texto: t, classe: "revogada tema" };
-  return { texto: t, classe: /afetad|sobrest|julgamento|pendente|preliminar|revis/i.test(t) ? "tema" : "vigente tema" };
+  if (/^(cancelad|prejudicad)/i.test(t)) return { texto: t, classe: "revogada tema" };
+  const semDefinicao = /afetad|sobrest|em julgamento|pendente|preliminar|relev|admitid|sem processo|suspens|finalizada|vinculada|repercuss[ãa]o geral publicado/i;
+  return { texto: t, classe: semDefinicao.test(t) ? "tema" : "vigente tema" };
 }
 
 // painel de carregamento: barra + giro + "aguarde"; some quando a busca inteligente fica pronta
@@ -110,6 +112,8 @@ function fazerConsultaGeral() {
   $("ia").scrollIntoView({ block: "nearest" });
 }
 
+function fonteTema(n) { return `${n.fonte}, coletado em ${n.coletado}`; }
+
 function cartao(r, termos) {
   const li = document.createElement("li");
   const n = r.norma, selo = seloDe(r);
@@ -123,11 +127,12 @@ function cartao(r, termos) {
     ${n.revogada_por ? `<p class="res-meta">Revogada pela ${escapar(n.revogada_por)}</p>` : ""}
     ${n.superada ? `<p class="res-meta">Sem efeito atual: esta norma apenas alterou uma norma já revogada.</p>` : ""}
     ${n.ementa ? `<p class="res-meta">${escapar(n.ementa.slice(0, 200))}${n.ementa.length > 200 ? "…" : ""}</p>` : ""}
+    ${r.linkTema ? `<p class="res-meta">Fonte: ${escapar(fonteTema(n))}</p>` : ""}
     ${r.estrutura ? `<p class="res-meta">${escapar(r.estrutura)}</p>` : ""}
     <div class="res-texto recolhido">${destacar(r.texto, termos)}</div>
     <div class="res-pe">
       <button type="button" class="link ver-mais">Ver trecho inteiro</button>
-      ${n.url ? `<a href="${escapar(n.url)}" target="_blank" rel="noopener">Texto oficial</a>` : ""}
+      ${r.linkTema || n.url ? `<a href="${escapar(r.linkTema || n.url)}" target="_blank" rel="noopener">Texto oficial</a>` : ""}
     </div>`;
   const corpo = li.querySelector(".res-texto"), bt = li.querySelector(".ver-mais");
   bt.onclick = () => {
@@ -142,7 +147,7 @@ function escolherParaIA(res, limite, excluir = new Set()) {
   const cont = new Map(), out = [];
   for (const r of res) {
     const k = r.norma.arquivo;
-    if (excluir.has(r.idx) || (cont.get(k) || 0) >= POR_NORMA_NA_IA) continue;
+    if (excluir.has(r.idx) || (cont.get(k) || 0) >= (r.linkTema ? POR_TRIBUNAL_NA_IA : POR_NORMA_NA_IA)) continue;
     cont.set(k, (cont.get(k) || 0) + 1);
     out.push(r);
     if (out.length >= limite) break;
@@ -165,7 +170,8 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados) {
   const blocoA = escolherParaIA(resAssunto, temPergunta ? TRECHOS_ASSUNTO_COM_PERGUNTA : TRECHOS_NA_IA);
   const blocoB = temPergunta ? escolherParaIA(resPergunta, TRECHOS_PERGUNTA, new Set(blocoA.map((r) => r.idx))) : [];
   const todos = [...blocoA, ...blocoB];
-  const texto = (lista, ini) => lista.map((r, i) => `[${ini + i + 1}] ${cabecalho(r.norma, r.rotulo, r.situacaoTema)}\n${r.texto}`).join("\n\n");
+  const fonte = (r) => r.linkTema ? `Fonte: ${fonteTema(r.norma)}. Link oficial: ${r.linkTema}\n` : "";
+  const texto = (lista, ini) => lista.map((r, i) => `[${ini + i + 1}] ${cabecalho(r.norma, r.rotulo, r.situacaoTema)}\n${fonte(r)}${r.texto}`).join("\n\n");
   // artigos de outras normas citados nos trechos escolhidos ("art. 81 do Regimento Interno")
   const ordemCit = new Map(), enviados = new Set(todos.map((r) => r.idx));
   todos.forEach((r, i) => (r.cita || []).forEach((t) => {
@@ -250,12 +256,12 @@ function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta) {
   });
   const lista = [...unicos.filter(ehPrecedente), ...unicos.filter((r) => !ehPrecedente(r))].slice(0, PRECEDENTES_NA_IA);
   const trechos = lista.map((r, i) =>
-    `[${i + 1}] ${identificarPrecedente(r)} | Situação: ${situacaoPrecedente(r)} | Link oficial: ${r.norma.url || "não informado"}\n${r.texto}`).join("\n\n");
+    `[${i + 1}] ${identificarPrecedente(r)} | Situação: ${situacaoPrecedente(r)}${r.linkTema ? ` | Fonte: ${fonteTema(r.norma)}` : ""} | Link oficial: ${r.linkTema || r.norma.url || "não informado"}\n${r.texto}`).join("\n\n");
   return [
-    "Você é um assistente jurídico especializado em precedentes qualificados (TJPI, STJ e STF), consultados a partir da base normativa do Tribunal de Justiça do Estado do Piauí (TJPI).",
+    "Você é um assistente jurídico especializado em precedentes qualificados (TJPI, STJ e STF), consultados a partir da base do Oráculo Normativo: documentos do Tribunal de Justiça do Estado do Piauí (TJPI) e, para o STF e o STJ, as fontes oficiais desses tribunais.",
     `TEMA: ${assunto}`,
     `PERGUNTA: ${pergunta || "consulta geral sobre o tema"}`,
-    "Abaixo estão trechos de súmulas e de informações sobre precedentes qualificados do TJPI, do STJ e do STF (e, se houver, de outras normas internas) constantes da base do TJPI, localizados por busca semântica no Oráculo Normativo. Responda EXCLUSIVAMENTE com base nesses trechos.",
+    "Abaixo estão trechos de súmulas e de informações sobre precedentes qualificados do TJPI, do STJ e do STF (e, se houver, de outras normas internas), localizados por busca semântica no Oráculo Normativo. Responda EXCLUSIVAMENTE com base nesses trechos.",
     "TRECHOS ENCONTRADOS:",
     trechos,
     "INSTRUÇÕES:",
@@ -272,7 +278,7 @@ function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta) {
     "3. Se houver precedentes de mais de um tribunal, apresente as fichas na ordem STF, STJ, TJPI.",
     "4. Depois das fichas, escreva \"Aplicação à pergunta\": explique em linguagem clara como a(s) tese(s) responde(m) à pergunta e aponte elementos que poderiam afastar a aplicação (distinção), se o próprio trecho os indicar.",
     "5. Se nenhum trecho contiver precedente ou súmula pertinente, diga isso claramente. Não invente número, data, tese ou órgão julgador.",
-    "6. Se julgar útil trazer informação que não está nos trechos (por exemplo, precedentes ou julgados que não aparecem nos trechos), faça isso SOMENTE em seção separada, intitulada \"Informações complementares (fora da base do TJPI)\", com a advertência: \"Estas informações não constam dos trechos fornecidos e devem ser conferidas em fonte oficial.\"",
+    "6. Se julgar útil trazer informação que não está nos trechos (por exemplo, precedentes ou julgados que não aparecem nos trechos), faça isso SOMENTE em seção separada, intitulada \"Informações complementares (fora da base do Oráculo)\", com a advertência: \"Estas informações não constam dos trechos fornecidos e devem ser conferidas em fonte oficial.\"",
     "7. Encerre com: \"O texto oficial do precedente, disponível no link indicado, prevalece sobre este resumo.\"",
   ].join("\n");
 }

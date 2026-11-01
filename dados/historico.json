@@ -1,6 +1,29 @@
 [
  {
   "data": "2026-11-01",
+  "normas": 1757,
+  "vigentes": 1626,
+  "trechos": 29596,
+  "nota": "",
+  "adicionadas": [
+   "Precedentes Qualificados do STF",
+   "Precedentes Qualificados do STJ"
+  ],
+  "retiradas": [
+   "PRECEDENTES - ADMINISTRATIVO",
+   "PRECEDENTES - CIVIL",
+   "PRECEDENTES - CONSUMIDOR",
+   "PRECEDENTES - OUTRAS MATERIAS",
+   "PRECEDENTES - PENAL",
+   "PRECEDENTES - PREVIDENCIARIO",
+   "PRECEDENTES - PROCESSUAL CIVIL E DO TRABALHO",
+   "PRECEDENTES - PROCESSUAL PENAL",
+   "PRECEDENTES - TRIBUTARIO"
+  ],
+  "revogadas": []
+ },
+ {
+  "data": "2026-11-01",
   "normas": 1764,
   "vigentes": 1633,
   "trechos": 28483,
