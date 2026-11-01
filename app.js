@@ -125,6 +125,15 @@ function fazerConsultaGeral() {
 
 function fonteTema(n) { return `${n.fonte}, coletado em ${n.coletado}`; }
 
+// tema com suspensao vigente: aviso destacado; acordao publicado ou suspensao encerrada: so uma linha discreta
+function avisoSuspensao(r) {
+  if (r.estadoSuspensao === "vigente")
+    return `<p class="aviso-suspensao"><strong>${/^Há suspensão nacional/.test(r.suspensao) ? "Há suspensão nacional" : "Há determinação de suspensão"}</strong>${escapar(r.suspensao.replace(/^Há [^.]*\./, ""))}</p>`;
+  if (r.estadoSuspensao === "conferir" || r.estadoSuspensao === "encerrada")
+    return `<p class="res-meta">Suspensão nacional: ${escapar(r.suspensao)}</p>`;
+  return "";
+}
+
 function cartao(r, termos) {
   const li = document.createElement("li");
   li.dataset.idx = r.idx;
@@ -136,6 +145,7 @@ function cartao(r, termos) {
       <span class="res-rotulo">${escapar(r.rotulo)}</span>
       <span class="selo ${selo.classe}">${escapar(selo.texto)}</span>
     </div>
+    ${avisoSuspensao(r)}
     ${n.revogada_por ? `<p class="res-meta">Revogada pela ${escapar(n.revogada_por)}</p>` : ""}
     ${n.superada ? `<p class="res-meta">Sem efeito atual: esta norma apenas alterou uma norma já revogada.</p>` : ""}
     ${n.ementa ? `<p class="res-meta">${escapar(n.ementa.slice(0, 200))}${n.ementa.length > 200 ? "…" : ""}</p>` : ""}
@@ -197,7 +207,7 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote)
                                               new Set([...excluir, ...blocoA.map((r) => r.idx)])) : [];
   const todos = [...blocoA, ...blocoB];
   if (!todos.length) return { texto: "", usados: [] };
-  const fonte = (r) => r.linkTema ? `Fonte: ${fonteTema(r.norma)}. Link oficial: ${r.linkTema}\n` : "";
+  const fonte = (r) => r.linkTema ? `Fonte: ${fonteTema(r.norma)}. Link oficial: ${r.linkTema}\nSuspensão nacional: ${r.suspensao}\n` : "";
   const texto = (lista, ini) => lista.map((r, i) => `[${ini + i + 1}] ${cabecalho(r.norma, r.rotulo, r.situacaoTema)}\n${fonte(r)}${r.texto}`).join("\n\n");
   // artigos de outras normas citados nos trechos escolhidos ("art. 81 do Regimento Interno")
   const ordemCit = new Map(), enviados = new Set(todos.map((r) => r.idx));
@@ -258,7 +268,7 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote)
 }
 
 // Prompt de precedentes: so aparece quando ha sumula ou precedente qualificado entre os trechos da tela.
-const TIPOS_PRECEDENTE = new Set(["Sumulas", "Precedentes Qualificados"]);
+const TIPOS_PRECEDENTE = new Set(["Sumulas", "Precedentes Qualificados", "Nota Técnica CIJEPI", "Guia NUGEP"]);
 const PRECEDENTES_NA_IA = 14;   // trechos no prompt, primeiro as sumulas e os precedentes
 
 function ehPrecedente(r) { return TIPOS_PRECEDENTE.has(r.norma.tipo); }
@@ -287,7 +297,7 @@ function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta, lot
   if (!lista.length) return { texto: "", usados: [] };
   const inicio = lote ? lote.primeiro - 1 : 0;
   const trechos = lista.map((r, i) =>
-    `[${inicio + i + 1}] ${identificarPrecedente(r)} | Situação: ${situacaoPrecedente(r)}${r.linkTema ? ` | Fonte: ${fonteTema(r.norma)}` : ""} | Link oficial: ${r.linkTema || r.norma.url || "não informado"}\n${r.texto}`).join("\n\n");
+    `[${inicio + i + 1}] ${identificarPrecedente(r)} | Situação: ${situacaoPrecedente(r)}${r.linkTema ? ` | Suspensão nacional: ${r.suspensao} | Fonte: ${fonteTema(r.norma)}` : ""} | Link oficial: ${r.linkTema || r.norma.url || "não informado"}\n${r.texto}`).join("\n\n");
   const texto = [
     ...(lote ? avisoContinuacao(lote) : []),
     "Você é um assistente jurídico especializado em precedentes qualificados (TJPI, STJ e STF), consultados a partir da base do Oráculo Normativo: documentos do Tribunal de Justiça do Estado do Piauí (TJPI) e, para o STF e o STJ, as fontes oficiais desses tribunais.",
@@ -304,9 +314,11 @@ function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta, lot
     " - Questão jurídica: a controvérsia resolvida, em uma ou duas frases.",
     " - Tese firmada: transcrição LITERAL, entre aspas, sem paráfrase.",
     " - Situação: vigente, revisada, superada, cancelada ou pendente de julgamento (com ou sem suspensão de processos), conforme o trecho. Se o trecho não informar, escreva \"não informada no trecho; conferir no texto oficial\".",
+    " - Suspensão nacional: copie o dado \"Suspensão nacional\" do trecho, com o alcance e a fonte. Nunca deduza que não há suspensão se o trecho não disser isso.",
     " - Alcance e efeitos: a quem e a quais processos se aplica e o caráter vinculante, apenas se constar do trecho.",
     " - Dispositivos legais relacionados: os citados no trecho.",
     " - Fonte: referência [n] e link oficial.",
+    "   Notas Técnicas do CIJEPI e guias do NUGEP são orientações do TJPI, não precedentes: não use a ficha para elas. Informe o que orientam, com número, ano, referência [n] e link.",
     "3. Se houver precedentes de mais de um tribunal, apresente as fichas na ordem STF, STJ, TJPI.",
     "4. Depois das fichas, escreva \"Aplicação à pergunta\": explique em linguagem clara como a(s) tese(s) responde(m) à pergunta e aponte elementos que poderiam afastar a aplicação (distinção), se o próprio trecho os indicar.",
     "5. Se nenhum trecho contiver precedente ou súmula pertinente, diga isso claramente. Não invente número, data, tese ou órgão julgador.",

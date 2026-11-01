@@ -168,6 +168,8 @@ button:disabled { background: var(--borda); color: var(--suave); box-shadow: non
 .selo.vigente.tema { color: var(--vigente); background: var(--vigente-fundo); box-shadow: none; }
 .selo.revogada.tema { color: var(--revogada); background: var(--revogada-fundo); box-shadow: none; }
 .selo.beta { color: var(--primaria); background: var(--primaria-fundo); font-family: system-ui, sans-serif; vertical-align: middle; }
+.aviso-suspensao { margin: 8px 0 0; padding: 8px 10px; font-size: .86rem; color: var(--revogada); background: var(--revogada-fundo); border-left: 4px solid var(--revogada); border-radius: 4px; }
+.aviso-suspensao strong { text-transform: uppercase; letter-spacing: .03em; }
 .res-meta { color: var(--suave); font-size: .84rem; margin: 6px 0 0; }
 .res-texto { white-space: pre-line; margin: 12px 0 8px; padding-top: 12px; border-top: 1px solid var(--borda); overflow-wrap: anywhere; }
 .res-texto.recolhido { max-height: 14em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 72%, transparent); mask-image: linear-gradient(#000 72%, transparent); }

@@ -12,6 +12,7 @@ let tf = [], comp = null, media = 0, inv = new Map(), idf = new Map();
 let extrator = null;
 let sitTema = [];   // situacao de cada trecho de precedente, conforme o proprio tema
 const MAX_POR_TRIBUNAL = 8;   // temas do STF e do STJ sao um documento por tribunal, com milhares de temas
+const TIPOS_PRECEDENTE = new Set(["Sumulas", "Precedentes Qualificados", "Nota Técnica CIJEPI", "Guia NUGEP"]);
 
 function dobrar(t) {
   return t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
@@ -257,7 +258,7 @@ function temasCitados(consulta) {
 async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, limite = 30 }) {
   const filtro = (i) => {
     const m = normas[trechos[i][0]];
-    return (!soVigentes || (m.situacao !== "revogada" && !m.superada && !/^(cancelad|prejudicad)/i.test(sitTema[i]))) && (!tipoNorma || m.tipo === tipoNorma || (tipoNorma === "precedentes-sumulas" && (m.tipo === "Sumulas" || m.tipo === "Precedentes Qualificados")));
+    return (!soVigentes || (m.situacao !== "revogada" && !m.superada && !/^(cancelad|prejudicad)/i.test(sitTema[i]))) && (!tipoNorma || m.tipo === tipoNorma || (tipoNorma === "precedentes-sumulas" && TIPOS_PRECEDENTE.has(m.tipo)));
   };
   const listas = [topo(bm25(consulta), 100, filtro)], pesos = [1];
   let modo = "palavras";
@@ -276,7 +277,7 @@ async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, li
     const [, rotulo, estrutura, texto, tema] = trechos[i];
     if ((porNorma.get(n) || 0) >= (tema ? (tipoNorma ? limite : MAX_POR_TRIBUNAL) : maxPorNorma)) continue;
     porNorma.set(n, (porNorma.get(n) || 0) + 1);
-    res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto, situacaoTema: sitTema[i], linkTema: tema?.u });
+    res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto, situacaoTema: sitTema[i], linkTema: tema?.u, suspensao: tema?.n, estadoSuspensao: tema?.e });
     if (res.length >= limite) break;
   }
   // artigos citados pelos primeiros resultados (a pagina escolhe quais entram no pedido a IA)

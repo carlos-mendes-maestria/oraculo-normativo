@@ -1,6 +1,33 @@
 [
  {
   "data": "2026-11-01",
+  "normas": 1773,
+  "vigentes": 1642,
+  "trechos": 29795,
+  "nota": "Inclusão das 15 Notas Técnicas do CIJEPI e dos códigos do PJe para sobrestamento, e aviso de suspensão nacional nos temas do STF e do STJ.",
+  "adicionadas": [
+   "Nota Técnica CIJEPI nº 15/2026",
+   "Nota Técnica CIJEPI nº 14/2026",
+   "Nota Técnica CIJEPI nº 13/2025",
+   "Nota Técnica CIJEPI nº 12/2025",
+   "Nota Técnica CIJEPI nº 11/2025",
+   "Nota Técnica CIJEPI nº 10/2024",
+   "Nota Técnica CIJEPI nº 9/2024",
+   "Nota Técnica CIJEPI nº 8/2023",
+   "Nota Técnica CIJEPI nº 7/2023",
+   "Nota Técnica CIJEPI nº 6/2023",
+   "Nota Técnica CIJEPI nº 5/2023",
+   "Nota Técnica CIJEPI nº 4/2022",
+   "Nota Técnica CIJEPI nº 3/2022",
+   "Nota Técnica CIJEPI nº 2/2022",
+   "Nota Técnica CIJEPI nº 1/2020",
+   "Códigos do PJe para sobrestamento de processos – NUGEP/TJPI"
+  ],
+  "retiradas": [],
+  "revogadas": []
+ },
+ {
+  "data": "2026-11-01",
   "normas": 1757,
   "vigentes": 1626,
   "trechos": 29596,

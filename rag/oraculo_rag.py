@@ -276,7 +276,7 @@ class Oraculo:
         tema = self._tema(i)
         if tema:   # vale a situacao do proprio tema, nao a do documento que reune os temas do tribunal
             sit = tema["s"].upper() if self._fora_de_vigor(i) else tema["s"]
-            return f"{n['nome']} – {rot} (situação do tema: {sit}; fonte: {n['fonte']}, coletado em {n['coletado']}; link oficial: {tema['u']})"
+            return f"{n['nome']} – {rot} (situação do tema: {sit}; suspensão nacional: {tema.get('n', 'não informada na fonte')}; fonte: {n['fonte']}, coletado em {n['coletado']}; link oficial: {tema['u']})"
         sit = "REVOGADA" if n["situacao"] == "revogada" else "SEM EFEITO, alterou norma revogada" if n.get("superada") else "vigente"
         por = f" pela {n['revogada_por']}" if n.get("revogada_por") else ""
         data = f", {n['data']}" if n.get("data") else ""
@@ -390,6 +390,7 @@ class Oraculo:
                 "Questão jurídica: [a controvérsia, em uma ou duas frases]\n"
                 "Tese firmada: [transcrição LITERAL, entre aspas, sem paráfrase; se não houver, diga que não há tese]\n"
                 "Situação: [a situação do próprio tema, conforme o cabeçalho do trecho]\n"
+                "Suspensão nacional: [copie o dado de suspensão nacional do cabeçalho do trecho, com o alcance e a fonte]\n"
                 "Alcance e efeitos: [a quem se aplica e caráter vinculante, apenas se constar do trecho]\n"
                 "Dispositivos legais relacionados: [os citados no trecho]\n"
                 "Fonte: [referência [n] e link oficial]\n\n"
