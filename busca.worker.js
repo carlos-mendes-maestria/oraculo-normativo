@@ -236,7 +236,7 @@ function concluirCarga(semModelo) {
 async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, limite = 30 }) {
   const filtro = (i) => {
     const m = normas[trechos[i][0]];
-    return (!soVigentes || (m.situacao !== "revogada" && !m.superada && !/^cancelad/i.test(sitTema[i]))) && (!tipoNorma || m.tipo === tipoNorma);
+    return (!soVigentes || (m.situacao !== "revogada" && !m.superada && !/^cancelad/i.test(sitTema[i]))) && (!tipoNorma || m.tipo === tipoNorma || (tipoNorma === "precedentes-sumulas" && (m.tipo === "Sumulas" || m.tipo === "Precedentes Qualificados")));
   };
   const listas = [topo(bm25(consulta), 100, filtro)], pesos = [1];
   let modo = "palavras";

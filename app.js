@@ -371,7 +371,16 @@ $("ir-geral").onclick = fazerConsultaGeral;
 $("q").oninput = atualizarFluxo;
 $("pergunta").oninput = atualizarFluxo;
 $("pergunta").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); adicionarPergunta(); } };
-$("vigentes").onchange = $("tipo").onchange = () => { if (temaAdd) buscar(temaAdd); atualizarFluxo(); };
+function filtroMudou() {
+  $("so-precedentes").setAttribute("aria-pressed", String($("tipo").value === "precedentes-sumulas"));
+  if (temaAdd) buscar(temaAdd);
+  atualizarFluxo();
+}
+$("vigentes").onchange = $("tipo").onchange = filtroMudou;
+$("so-precedentes").onclick = () => {   // liga e desliga: um novo clique volta a todos os tipos
+  $("tipo").value = $("tipo").value === "precedentes-sumulas" ? "" : "precedentes-sumulas";
+  filtroMudou();
+};
 $("ia-chatgpt").onclick = () => perguntarIA("https://chatgpt.com/");
 $("ia-gemini").onclick = () => perguntarIA("https://gemini.google.com/app");
 $("ia-copiar").onclick = () => perguntarIA(null);
