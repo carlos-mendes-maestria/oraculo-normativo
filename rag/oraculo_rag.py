@@ -189,7 +189,7 @@ class Oraculo:
             for a in manifesto["arquivos"]:
                 z = np.load(io.BytesIO(self._baixar("rag/" + a)))
                 for h, v in zip(z["h"], z["v"]):
-                    vetores[bytes(h).hex()] = v
+                    vetores[bytes(h).ljust(20, b"\0").hex()] = v   # o numpy corta zeros no fim do hash
             ids, vs, metas = [], [], []
             for i, t in enumerate(self.trechos):
                 v = vetores.get(hashlib.sha1(self._texto_rag(t).encode("utf-8")).hexdigest())
@@ -302,6 +302,19 @@ class Oraculo:
         except (ValueError, AttributeError):
             return "", []
 
+    RX_TEMA = re.compile(r"\b(tema|iac|sirdr|puil|relevancia)\s*(?:n[º°o.]*\s*)?(\d[\d.]*)(?:\s*(?:/|d[oe])?\s*(stf|stj))?", re.I)
+
+    def _temas_citados(self, pergunta):
+        """"Tema 1376 STJ": o tema pedido pelo numero entra sempre, mesmo cancelado, para a IA informar a situacao."""
+        rotulos = {dobrar(t[1]): i for i, t in enumerate(self.trechos) if len(t) > 4}
+        out = []
+        for sigla, num, trib in self.RX_TEMA.findall(dobrar(pergunta)):
+            for t in [trib] if trib else ["stf", "stj"]:
+                i = rotulos.get(f"{sigla} {num.replace('.', '')} {t}")
+                if i is not None:
+                    out.append(i)
+        return out
+
     def recuperar(self, pergunta, so_vigentes=True):
         """Devolve (tema, trechos escolhidos, artigos citados)."""
         tema, buscas = self._variacoes(pergunta) if self.reescrever else ("", [])
@@ -319,7 +332,8 @@ class Oraculo:
             notas = self.rerank.notas(pergunta, [self._texto_rag(self.trechos[i]) for i in fundidos])
             fundidos = [i for _, i in sorted(zip(notas, fundidos), key=lambda x: -x[0])]
         cont, escolhidos = Counter(), []
-        for i in fundidos:
+        fixos = self._temas_citados(pergunta)
+        for i in fixos + [i for i in fundidos if i not in fixos]:
             n = self.trechos[i][0]
             if cont[n] < (POR_TRIBUNAL if self._tema(i) else POR_NORMA):
                 cont[n] += 1
@@ -375,7 +389,7 @@ class Oraculo:
                 "Tribunal: [TJPI, STJ ou STF]\n"
                 "Identificação: [espécie, número do tema ou da súmula, processo paradigma, órgão julgador e data, se constarem]\n"
                 "Questão jurídica: [a controvérsia, em uma ou duas frases]\n"
-                "Tese firmada: [transcrição LITERAL, entre aspas, sem paráfrase; se não houver, diga que ainda não há tese]\n"
+                "Tese firmada: [transcrição LITERAL, entre aspas, sem paráfrase; se não houver, diga que não há tese]\n"
                 "Situação: [a situação do próprio tema, conforme o cabeçalho do trecho]\n"
                 "Alcance e efeitos: [a quem se aplica e caráter vinculante, apenas se constar do trecho]\n"
                 "Dispositivos legais relacionados: [os citados no trecho]\n"

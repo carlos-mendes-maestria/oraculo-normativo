@@ -230,9 +230,28 @@ function concluirCarga(semModelo) {
   montarBM25();
   montarRemissoes();
   montarSituacoes();
+  montarRotulos();
   console.log(`[busca] indice de palavras montado em ${Math.round(performance.now() - t0)} ms`);
   postMessage({ tipo: "pronto", normas: normas.length, trechos: trechos.length });
   if (!semModelo) carregarModelo();
+}
+
+// "Tema 1376 STJ", "IAC 5": o tema pedido pelo numero vem primeiro, mesmo cancelado, para o usuario ver a situacao dele.
+const RX_TEMA = /\b(tema|iac|sirdr|puil|relevancia)\s*(?:n[º°o.]*\s*)?(\d[\d.]*)(?:\s*(?:\/|d[oe])?\s*(stf|stj))?/gi;
+let porRotulo = new Map();
+
+function montarRotulos() {
+  trechos.forEach((t, i) => { if (t[4]) porRotulo.set(dobrar(t[1]), i); });
+}
+
+function temasCitados(consulta) {
+  const out = [];
+  for (const [, sigla, num, trib] of dobrar(consulta).matchAll(RX_TEMA))
+    for (const t of trib ? [trib] : ["stf", "stj"]) {
+      const i = porRotulo.get(`${sigla} ${num.replace(/\./g, "")} ${t}`);
+      if (i !== undefined) out.push(i);
+    }
+  return out;
 }
 
 async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, limite = 30 }) {
@@ -249,12 +268,13 @@ async function buscar({ id, consulta, soVigentes, tipoNorma, maxPorNorma = 3, li
   }
   const ampliada = expandir(consulta);
   if (ampliada !== consulta) { listas.push(topo(bm25(ampliada), 100, filtro)); pesos.push(PESO_AMPLIADA); }
-  const ordem = listas.length > 1 ? rrf(listas, pesos) : listas[0];
+  const fixos = tipoNorma && !/recedentes/.test(tipoNorma) ? [] : temasCitados(consulta);
+  const ordem = [...new Set([...fixos, ...(listas.length > 1 ? rrf(listas, pesos) : listas[0])])];
   const porNorma = new Map(), res = [];
   for (const i of ordem) {
     const n = trechos[i][0];
     const [, rotulo, estrutura, texto, tema] = trechos[i];
-    if ((porNorma.get(n) || 0) >= (tema ? MAX_POR_TRIBUNAL : maxPorNorma)) continue;
+    if ((porNorma.get(n) || 0) >= (tema ? (tipoNorma ? limite : MAX_POR_TRIBUNAL) : maxPorNorma)) continue;
     porNorma.set(n, (porNorma.get(n) || 0) + 1);
     res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto, situacaoTema: sitTema[i], linkTema: tema?.u });
     if (res.length >= limite) break;
