@@ -6,6 +6,10 @@ const NA_TELA = 10;          // cartoes mostrados (ate 3 por norma)
 const TRECHOS_NA_IA = 14;    // consulta geral: mais trechos, para a explicacao minuciosa (ate 2 por norma)
 const POR_NORMA_NA_IA = 2;
 const POR_TRIBUNAL_NA_IA = 4;   // temas do STF e do STJ: um documento por tribunal
+const TOTAL_DA_BUSCA = 100;     // trechos pedidos ao worker: o "Estender busca" percorre todos eles
+const TRECHOS_POR_LOTE = 14;    // "Estender busca": trechos ainda nao enviados em cada novo prompt
+let envio = null;               // ultimo prompt copiado: { precedentes, lote, enviados (Set de idx) }
+let ultimoTermos = [];
 let ultimo = null, contador = 0, baseOk = false, modeloOk = false, modeloMsg = "";
 
 function dobrar(t) { return t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
@@ -74,8 +78,9 @@ function atualizarFluxo() {
   $("pergunta").disabled = !temaOk;
   $("ir-p").disabled = !temaOk;
   $("ir-geral").disabled = !temaOk;
-  ["ia-chatgpt", "ia-gemini", "ia-copiar", "ia-precedentes"].forEach((id) => { $(id).disabled = !pronto; });
+  ["ia-chatgpt", "ia-gemini", "ia-copiar", "ia-precedentes", "estender"].forEach((id) => { $(id).disabled = !pronto; });
   $("ia-precedentes").hidden = !(pronto && ultimo.res.slice(0, NA_TELA).some(ehPrecedente));
+  $("estender").hidden = !(pronto && envio);
   $("passo2").hidden = !pronto;
   $("resultados").hidden = !pronto;
   $("exemplos").hidden = !!temaAdd;
@@ -116,6 +121,7 @@ function fonteTema(n) { return `${n.fonte}, coletado em ${n.coletado}`; }
 
 function cartao(r, termos) {
   const li = document.createElement("li");
+  li.dataset.idx = r.idx;
   const n = r.norma, selo = seloDe(r);
   li.className = `res ${/revogada/.test(selo.classe) ? "revogada" : ""}`;
   li.innerHTML = `
@@ -165,11 +171,26 @@ function cabecalho(n, rotulo, sitTema) {
 }
 
 // assunto: a busca mostrada na tela; pergunta: busca paralela (nao exibida) so para subsidiar o pedido
-function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados) {
+// lote: { numero, excluir, primeiro } nos prompts do "Estender busca"; devolve { texto, usados }
+function avisoContinuacao(lote) {
+  return [
+    `CONTINUAÇÃO – LOTE ${lote.numero} DE TRECHOS DA MESMA BUSCA. Os trechos abaixo não foram enviados antes e continuam a numeração a partir de [${lote.primeiro}].`,
+    "São menos semelhantes à pergunta que os dos lotes anteriores: confira a pertinência de cada um, ignore os que não tratam do assunto e diga quais foram ignorados.",
+    "Não refaça o que já foi respondido: traga apenas o que estes trechos acrescentam ou alteram.",
+    "",
+  ];
+}
+
+function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote) {
   const temPergunta = pergunta && resPergunta;
-  const blocoA = escolherParaIA(resAssunto, temPergunta ? TRECHOS_ASSUNTO_COM_PERGUNTA : TRECHOS_NA_IA);
-  const blocoB = temPergunta ? escolherParaIA(resPergunta, TRECHOS_PERGUNTA, new Set(blocoA.map((r) => r.idx))) : [];
+  const excluir = lote ? lote.excluir : new Set();
+  const inicio = lote ? lote.primeiro - 1 : 0;
+  const blocoA = lote ? escolherParaIA(resAssunto, temPergunta ? TRECHOS_POR_LOTE / 2 : TRECHOS_POR_LOTE, excluir)
+                      : escolherParaIA(resAssunto, temPergunta ? TRECHOS_ASSUNTO_COM_PERGUNTA : TRECHOS_NA_IA);
+  const blocoB = temPergunta ? escolherParaIA(resPergunta, lote ? TRECHOS_POR_LOTE - blocoA.length : TRECHOS_PERGUNTA,
+                                              new Set([...excluir, ...blocoA.map((r) => r.idx)])) : [];
   const todos = [...blocoA, ...blocoB];
+  if (!todos.length) return { texto: "", usados: [] };
   const fonte = (r) => r.linkTema ? `Fonte: ${fonteTema(r.norma)}. Link oficial: ${r.linkTema}\n` : "";
   const texto = (lista, ini) => lista.map((r, i) => `[${ini + i + 1}] ${cabecalho(r.norma, r.rotulo, r.situacaoTema)}\n${fonte(r)}${r.texto}`).join("\n\n");
   // artigos de outras normas citados nos trechos escolhidos ("art. 81 do Regimento Interno")
@@ -189,7 +210,8 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados) {
   ];
   const parteFora = pergunta ? "PARTE 3 – SOMENTE se a Parte 2 não responder por completo:"
                              : "PARTE 2 – SOMENTE se algum aspecto importante do tema não estiver coberto pelos trechos:";
-  return [
+  const texto_ = [
+    ...(lote ? avisoContinuacao(lote) : []),
     "Você é um assistente que tira dúvidas sobre as normas internas do Poder Judiciário do Estado do Piauí.",
     "Responda em português, em linguagem clara, para um servidor sem formação jurídica, nesta ordem.",
     `Logo abaixo do título de CADA parte da resposta, escreva a linha de identificação: "${identificacao}".`,
@@ -216,9 +238,9 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados) {
     pergunta ? `PERGUNTA DO USUÁRIO: ${pergunta}` : "PERGUNTA DO USUÁRIO: nenhuma (consulta geral sobre o tema)",
     "",
     "TRECHOS SOBRE O TEMA:",
-    texto(blocoA, 0),
+    texto(blocoA, inicio),
     "",
-    ...(blocoB.length ? ["TRECHOS ENCONTRADOS PARA A PERGUNTA:", texto(blocoB, blocoA.length), ""] : []),
+    ...(blocoB.length ? ["TRECHOS ENCONTRADOS PARA A PERGUNTA:", texto(blocoB, inicio + blocoA.length), ""] : []),
     ...(blocosCit.length ? [
       "TRECHOS CITADOS (artigos de normas mencionados nos trechos acima; use-os para completar a resposta quando o trecho remeter a eles):",
       blocosCit.join("\n\n"),
@@ -226,6 +248,7 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados) {
     ] : []),
     "Lembrete: o texto oficial publicado prevalece.",
   ].join("\n");
+  return { texto: texto_, usados: todos };
 }
 
 // Prompt de precedentes: so aparece quando ha sumula ou precedente qualificado entre os trechos da tela.
@@ -247,17 +270,20 @@ function identificarPrecedente(r) {
   return `${n.nome} – ${r.rotulo}`;
 }
 
-function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta) {
+function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta, lote) {
   // trechos da pergunta primeiro; a mesma sumula pode estar duas vezes no portal, por isso o filtro pelo texto
   const vistos = new Set(), unicos = [...(resPergunta || []), ...resAssunto].filter((r) => {
-    if (vistos.has(r.idx) || vistos.has(r.texto)) return false;
+    if (vistos.has(r.idx) || vistos.has(r.texto) || (lote && lote.excluir.has(r.idx))) return false;
     vistos.add(r.idx); vistos.add(r.texto);
     return true;
   });
   const lista = [...unicos.filter(ehPrecedente), ...unicos.filter((r) => !ehPrecedente(r))].slice(0, PRECEDENTES_NA_IA);
+  if (!lista.length) return { texto: "", usados: [] };
+  const inicio = lote ? lote.primeiro - 1 : 0;
   const trechos = lista.map((r, i) =>
-    `[${i + 1}] ${identificarPrecedente(r)} | Situação: ${situacaoPrecedente(r)}${r.linkTema ? ` | Fonte: ${fonteTema(r.norma)}` : ""} | Link oficial: ${r.linkTema || r.norma.url || "não informado"}\n${r.texto}`).join("\n\n");
-  return [
+    `[${inicio + i + 1}] ${identificarPrecedente(r)} | Situação: ${situacaoPrecedente(r)}${r.linkTema ? ` | Fonte: ${fonteTema(r.norma)}` : ""} | Link oficial: ${r.linkTema || r.norma.url || "não informado"}\n${r.texto}`).join("\n\n");
+  const texto = [
+    ...(lote ? avisoContinuacao(lote) : []),
     "Você é um assistente jurídico especializado em precedentes qualificados (TJPI, STJ e STF), consultados a partir da base do Oráculo Normativo: documentos do Tribunal de Justiça do Estado do Piauí (TJPI) e, para o STF e o STJ, as fontes oficiais desses tribunais.",
     `TEMA: ${assunto}`,
     `PERGUNTA: ${pergunta || "consulta geral sobre o tema"}`,
@@ -281,6 +307,7 @@ function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta) {
     "6. Se julgar útil trazer informação que não está nos trechos (por exemplo, precedentes ou julgados que não aparecem nos trechos), faça isso SOMENTE em seção separada, intitulada \"Informações complementares (fora da base do Oráculo)\", com a advertência: \"Estas informações não constam dos trechos fornecidos e devem ser conferidas em fonte oficial.\"",
     "7. Encerre com: \"O texto oficial do precedente, disponível no link indicado, prevalece sobre este resumo.\"",
   ].join("\n");
+  return { texto, usados: lista };
 }
 
 // busca da pergunta: mesma busca do worker, mas o resultado nao vai para a tela
@@ -290,7 +317,7 @@ function buscarOculto(consulta) {
   return new Promise((ok) => {
     const id = ++idOculto;
     pendentes.set(id, ok);
-    worker.postMessage({ tipo: "buscar", id, consulta, soVigentes: $("vigentes").checked, tipoNorma: $("tipo").value });
+    worker.postMessage({ tipo: "buscar", id, consulta, soVigentes: $("vigentes").checked, tipoNorma: $("tipo").value, limite: TOTAL_DA_BUSCA });
   });
 }
 
@@ -303,7 +330,7 @@ async function copiar(texto) {
   }
 }
 
-async function perguntarIA(destino, precedentes = false) {
+async function perguntarIA(destino, precedentes = false, estender = false) {
   if (!ultimo) return;
   // a busca da pergunta leva menos de 1 s: a copia e a nova aba ainda contam como acao do clique
   // (abrir a aba antes tiraria o foco da pagina e o navegador recusaria a copia)
@@ -314,10 +341,20 @@ async function perguntarIA(destino, precedentes = false) {
     resP = m.res;
     Object.assign(citados, m.citados);
   }
-  const pedido = precedentes ? montarPedidoPrecedentes(ultimo.consulta, ultimo.res, pergunta, resP)
-                             : montarPedido(ultimo.consulta, ultimo.res, pergunta, resP, citados);
+  const lote = estender ? { numero: envio.lote + 1, excluir: envio.enviados, primeiro: envio.enviados.size + 1 } : null;
+  const { texto: pedido, usados } = precedentes ? montarPedidoPrecedentes(ultimo.consulta, ultimo.res, pergunta, resP, lote)
+                                                : montarPedido(ultimo.consulta, ultimo.res, pergunta, resP, citados, lote);
+  if (!usados.length) {
+    $("ia-aviso").textContent = "Não há mais trechos nesta busca: todos os encontrados já foram enviados.";
+    $("ia-aviso").hidden = false;
+    $("estender").disabled = true;
+    return;
+  }
+  envio = { precedentes, lote: lote ? lote.numero : 1, enviados: new Set([...(lote ? lote.excluir : []), ...usados.map((r) => r.idx)]) };
+  if (lote) mostrarLote(usados);
+  atualizarFluxo();
   const ok = await copiar(pedido);
-  const msg = ok ? (destino ? "✓ Prompt copiado. Na aba que abriu, cole na conversa (Ctrl+V, ou toque longo › Colar) e envie."
+  const msg = ok ? estender ? `✓ Lote ${envio.lote} copiado, com ${usados.length} trechos novos, listados no fim dos resultados. Atenção: eles são menos semelhantes à pergunta; confira a pertinência. Cole na mesma conversa ou em outra.` : (destino ? "✓ Prompt copiado. Na aba que abriu, cole na conversa (Ctrl+V, ou toque longo › Colar) e envie."
                             : `✓ Prompt${precedentes ? " de precedentes" : ""} copiado. Cole no assistente de IA que preferir e envie.`)
                  : "O navegador não deixou copiar sozinho. O prompt está na caixa abaixo, já selecionado: copie (Ctrl+C, ou toque longo › Copiar) e cole na IA.";
   $("ia-aviso").textContent = msg;
@@ -326,6 +363,13 @@ async function perguntarIA(destino, precedentes = false) {
   caixa.hidden = ok;
   if (!ok) { caixa.value = pedido; caixa.focus(); caixa.select(); }
   if (destino) window.open(destino, "_blank", "noopener");
+}
+
+// trechos do lote estendido que ainda nao estavam na tela
+function mostrarLote(usados) {
+  const lista = $("resultados"), noCartao = new Set([...lista.children].map((li) => li.dataset.idx));
+  usados.filter((r) => !noCartao.has(String(r.idx))).forEach((r) => lista.appendChild(cartao(r, ultimoTermos)));
+  $("contagem").textContent = `${lista.children.length} trechos`;
 }
 
 worker.onerror = (e) => {
@@ -357,6 +401,7 @@ worker.onmessage = (e) => {
     lista.innerHTML = "";
     ultimo.res = m.res;
     ultimo.citados = m.citados;
+    ultimoTermos = m.termos;
     m.res.slice(0, NA_TELA).forEach((r) => lista.appendChild(cartao(r, m.termos)));
     $("contagem").textContent = m.res.length ? `${Math.min(m.res.length, NA_TELA)} mais relevantes` : "";
     atualizarEstado(m.res.length ? "" : "Nada encontrado para este tema. Tente outras palavras ou desmarque “Só normas vigentes”.");
@@ -368,7 +413,8 @@ function buscar(consulta) {
   if (!consulta) return;
   contador++;
   ultimo = { consulta, res: [] };   // sem resultados ate a resposta chegar: botoes nao usam a busca anterior
-  worker.postMessage({ tipo: "buscar", id: contador, consulta, soVigentes: $("vigentes").checked, tipoNorma: $("tipo").value });
+  envio = null;
+  worker.postMessage({ tipo: "buscar", id: contador, consulta, soVigentes: $("vigentes").checked, tipoNorma: $("tipo").value, limite: TOTAL_DA_BUSCA });
 }
 
 $("form").onsubmit = (e) => { e.preventDefault(); adicionarTema($("q").value.trim()); };
@@ -391,6 +437,7 @@ $("ia-chatgpt").onclick = () => perguntarIA("https://chatgpt.com/");
 $("ia-gemini").onclick = () => perguntarIA("https://gemini.google.com/app");
 $("ia-copiar").onclick = () => perguntarIA(null);
 $("ia-precedentes").onclick = () => perguntarIA(null, true);
+$("estender").onclick = () => perguntarIA(null, envio.precedentes, true);
 document.querySelectorAll("#exemplos button").forEach((b) => {
   b.onclick = () => { $("q").value = b.textContent; adicionarTema(b.textContent); };
 });
