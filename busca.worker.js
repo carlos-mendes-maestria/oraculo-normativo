@@ -147,6 +147,22 @@ function avaliador(consulta, ampliada, fixos) {
   };
 }
 
+// Rebaixa no prompt, sem retirar: norma da pandemia quando a consulta nao fala nisso e tema do STF ou do STJ que so coincide
+// em palavra, sem nenhum termo do dicionario, quando a pergunta foi traduzida para os termos das normas.
+const RX_COVID = /covid|coronav|pandemia/;
+
+function avaliadorFraco(consulta, ampliada) {
+  const covidNaConsulta = RX_COVID.test(dobrar(consulta));
+  const extras = termos(ampliada.slice(consulta.length));
+  return (i) => {
+    const doc = dobrar(docDe(trechos[i]));
+    if (!covidNaConsulta && RX_COVID.test(doc)) return true;
+    if (!trechos[i][4] || !extras.length) return false;
+    const t = new Set(termos(doc));
+    return !extras.some((w) => t.has(w));
+  };
+}
+
 async function carregarModelo() {
   try {
     const { pipeline, env } = await import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1");
@@ -315,14 +331,14 @@ async function buscar({ id, consulta: digitada, contexto, soVigentes, tipoNorma,
   if (contexto) { listas.push(topo(bm25(`${corrigir(contexto)} ${ampliada}`), 100, filtro)); pesos.push(PESO_CONTEXTO); }
   const fixos = tipoNorma && !/recedentes/.test(tipoNorma) ? [] : temasCitados(consulta);
   const ordem = [...new Set([...fixos, ...(listas.length > 1 ? rrf(listas, pesos) : listas[0])])];
-  const pertinente = avaliador(consulta, ampliada, fixos);
+  const pertinente = avaliador(consulta, ampliada, fixos), fraco = avaliadorFraco(consulta, ampliada);
   const porNorma = new Map(), res = [];
   for (const i of ordem) {
     const n = trechos[i][0];
     const [, rotulo, estrutura, texto, tema] = trechos[i];
     if ((porNorma.get(n) || 0) >= (tema ? (tipoNorma ? limite : MAX_POR_TRIBUNAL) : maxPorNorma)) continue;
     porNorma.set(n, (porNorma.get(n) || 0) + 1);
-    res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto, situacaoTema: sitTema[i], linkTema: tema?.u, suspensao: tema?.n, estadoSuspensao: tema?.e, pertinente: pertinente(i) });
+    res.push({ idx: i, norma: normas[n], rotulo, estrutura, texto, situacaoTema: sitTema[i], linkTema: tema?.u, suspensao: tema?.n, estadoSuspensao: tema?.e, pertinente: pertinente(i), fraco: !fixos.includes(i) && fraco(i) });
     if (res.length >= limite) break;
   }
   // artigos citados pelos primeiros resultados (a pagina escolhe quais entram no pedido a IA)

@@ -1,7 +1,7 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const VERSAO = "f924ad579323";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const VERSAO = "a905b3d08f8a";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
 const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
 
 // Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
@@ -236,7 +236,7 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote)
     `[C${j + 1}] ${cabecalho(citados[t].norma, citados[t].rotulo)} – citado em [${de.join("], [")}]\n${citados[t].texto}`);
   const identificacao = pergunta ? `Tema: ${assunto} | Pergunta: ${pergunta}` : `Tema: ${assunto} | Consulta geral, sem pergunta específica`;
   const regras = [
-    "- Use SOMENTE os trechos abaixo e cite a norma e o artigo de cada informação, no formato (Resolução nº X/AAAA, art. Y).",
+    "- Use SOMENTE os trechos abaixo e cite a norma e o artigo de cada informação, com o nome exato da norma como aparece no trecho, no formato (Resolução nº X/AAAA, art. Y) ou (Nota Técnica CIJEPI nº X/AAAA, trecho Y).",
     "- Regras gerais dos servidores ou dos magistrados (ex.: Estatuto dos Servidores, Constituição Estadual) se aplicam a todos os cargos da categoria, mesmo que o trecho não cite o cargo perguntado.",
     "- Se houver norma revogada ou redações diferentes do mesmo artigo, use a vigente e a mais recente e mencione a diferença.",
     `- ${REGRA_AUSENCIA}`,
@@ -312,6 +312,8 @@ function pertinentes(res) {
   const ok = res.filter((r) => r.pertinente !== false);
   return ok.length >= MIN_PERTINENTES ? ok : res;
 }
+
+function rebaixar(res) { return [...res.filter((r) => !r.fraco), ...res.filter((r) => r.fraco)]; }
 
 function intercalar(a, b) {
   const out = [];
@@ -403,8 +405,8 @@ async function perguntarIA(destino, precedentes = false, estender = false) {
   }
   const lote = estender ? { numero: envio.lote + 1, excluir: envio.enviados, primeiro: envio.enviados.size + 1 } : null;
   const enxuto = precedentes || $("tipo").value === "precedentes-sumulas";
-  const resA = enxuto ? pertinentes(ultimo.res) : ultimo.res;
-  if (enxuto && resP) resP = pertinentes(resP);
+  const resA = rebaixar(enxuto ? pertinentes(ultimo.res) : ultimo.res);
+  resP = resP && rebaixar(enxuto ? pertinentes(resP) : resP);
   const { texto: pedido, usados } = precedentes ? montarPedidoPrecedentes(ultimo.consulta, resA, pergunta, resP, lote)
                                                 : montarPedido(ultimo.consulta, resA, pergunta, resP, citados, lote);
   if (!usados.length) {

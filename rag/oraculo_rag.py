@@ -348,8 +348,8 @@ class Oraculo:
         cit = "\n\n".join(f"[C{k + 1}] {self.cabecalho(i)}\n{self.trechos[i][3]}" for k, i in enumerate(citados))
         regras = ("Você é um assistente que tira dúvidas sobre as normas internas do Poder Judiciário do Estado do Piauí. "
                   "Responda em português, em linguagem clara, para um servidor sem formação jurídica.\n"
-                  "Regras: use SOMENTE os trechos fornecidos e cite a norma e o artigo de cada informação, no formato "
-                  "(Resolução nº X/AAAA, art. Y). Regras gerais dos servidores ou dos magistrados valem para todos os cargos da "
+                  "Regras: use SOMENTE os trechos fornecidos e cite a norma e o artigo de cada informação, com o nome exato da norma "
+                  "como aparece no trecho, por exemplo (Resolução nº X/AAAA, art. Y) ou (Nota Técnica CIJEPI nº X/AAAA, trecho Y). Regras gerais dos servidores ou dos magistrados valem para todos os cargos da "
                   "categoria. Quando duas normas tratarem do mesmo ponto, vale a mais recente; nunca use trecho marcado como "
                   "REVOGADA ou SEM EFEITO como regra atual; se o citar, diga que não vale mais. Se a norma estiver indicada como "
                   "alterada, procure a redação da norma que a alterou. Nos precedentes, vale a situação do próprio tema: tema "

@@ -2,6 +2,19 @@
  {
   "data": "2026-11-01",
   "normas": 1773,
+  "vigentes": 1640,
+  "trechos": 29795,
+  "nota": "Provimentos Conjuntos nºs 35/2017 e 67/2022 marcados como revogados pelo Provimento Conjunto nº 84/2023 (teletrabalho).",
+  "adicionadas": [],
+  "retiradas": [],
+  "revogadas": [
+   "PROVIMENTO CONJUNTO Nº 35/2017 - PJPI/TJPI/PRES/SECGER, DE 19 DE JULHO DE 2017",
+   "Provimento nº 67/2022"
+  ]
+ },
+ {
+  "data": "2026-11-01",
+  "normas": 1773,
   "vigentes": 1642,
   "trechos": 29795,
   "nota": "Inclusão das 15 Notas Técnicas do CIJEPI e dos códigos do PJe para sobrestamento, e aviso de suspensão nacional nos temas do STF e do STJ.",

@@ -3,7 +3,7 @@
  "dimensao": 384,
  "trechos": 29795,
  "normas": 1773,
- "vigentes": 1642,
+ "vigentes": 1640,
  "partes": [
   4000,
   4000,
@@ -14,6 +14,6 @@
   4000,
   1795
  ],
- "versao": "814f912a0afc",
- "gerado_em": "2026-11-01 19:58"
+ "versao": "c1d93b79b9aa",
+ "gerado_em": "2026-11-01 21:48"
 }
