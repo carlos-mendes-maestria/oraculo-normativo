@@ -338,7 +338,7 @@ async function buscar({ id, consulta: digitada, contexto, soVigentes, tipoNorma,
       }
     }
   }
-  postMessage({ tipo: "resultado", id, modo, res, citados, termos: [...new Set(termos(consulta))], corrigida: consulta !== digitada ? consulta : "" });
+  postMessage({ tipo: "resultado", id, modo, res, citados, termos: [...new Set(termos(consulta))], corrigida: consulta !== digitada ? consulta : "", equivalentes: ampliada.slice(consulta.length).trim() });
 }
 
 onmessage = (e) => {

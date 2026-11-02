@@ -178,6 +178,9 @@ function escolherParaIA(res, limite, excluir = new Set()) {
 }
 
 const MAX_CITADOS_NA_IA = 8;
+// sem trecho sobre um ponto nao se pode concluir que a norma nao trata dele: a busca so traz parte do acervo
+const REGRA_AUSENCIA = "Se os trechos não tratarem de algum ponto, escreva \"os trechos encontrados não tratam disso\" e recomende nova busca ou consulta ao texto oficial. Nunca afirme que a norma não prevê, não autoriza ou proíbe algo com base na ausência de trechos.";
+let equivalentes = "";   // termos das normas para a linguagem da pergunta (dicionario de equivalencias)
 const TRECHOS_ASSUNTO_COM_PERGUNTA = 7;   // com pergunta: 7 do assunto + ate 7 da pergunta
 const TRECHOS_PERGUNTA = 7;
 
@@ -223,6 +226,7 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote)
     "- Use SOMENTE os trechos abaixo e cite a norma e o artigo de cada informação, no formato (Resolução nº X/AAAA, art. Y).",
     "- Regras gerais dos servidores ou dos magistrados (ex.: Estatuto dos Servidores, Constituição Estadual) se aplicam a todos os cargos da categoria, mesmo que o trecho não cite o cargo perguntado.",
     "- Se houver norma revogada ou redações diferentes do mesmo artigo, use a vigente e a mais recente e mencione a diferença.",
+    `- ${REGRA_AUSENCIA}`,
   ];
   const parteFora = pergunta ? "PARTE 3 – SOMENTE se a Parte 2 não responder por completo:"
                              : "PARTE 2 – SOMENTE se algum aspecto importante do tema não estiver coberto pelos trechos:";
@@ -239,7 +243,8 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote)
     "",
     ...(pergunta ? [
       `PARTE 2 – RESPOSTA À PERGUNTA "${pergunta}" (com base nas normas do acervo)`,
-      "- Responda à pergunta de forma completa e direta.",
+      "- Responda à pergunta de forma completa e direta. Antes de concluir, leia todos os trechos, começando pelos \"TRECHOS ENCONTRADOS PARA A PERGUNTA\".",
+      ...(equivalentes ? [`- A pergunta pode usar linguagem do dia a dia. Nas normas, o assunto pode aparecer com estes termos: ${equivalentes}.`] : []),
       ...regras,
       "- Se os trechos não bastarem, diga claramente o que ficou sem resposta.",
       "",
@@ -343,7 +348,7 @@ function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta, lot
     "   Notas Técnicas do CIJEPI e guias do NUGEP são orientações do TJPI, não precedentes: não use a ficha para elas. Informe o que orientam, com número, ano, referência [n] e link.",
     "3. Se houver precedentes de mais de um tribunal, apresente as fichas na ordem STF, STJ, TJPI.",
     "4. Depois das fichas, escreva \"Aplicação à pergunta\": explique em linguagem clara como a(s) tese(s) responde(m) à pergunta e aponte elementos que poderiam afastar a aplicação (distinção), se o próprio trecho os indicar.",
-    "5. Se nenhum trecho contiver precedente ou súmula pertinente, diga isso claramente. Não invente número, data, tese ou órgão julgador.",
+    `5. Se nenhum trecho contiver precedente ou súmula pertinente, diga isso claramente. Não invente número, data, tese ou órgão julgador. ${REGRA_AUSENCIA}`,
     "6. Se julgar útil trazer informação que não está nos trechos (por exemplo, precedentes ou julgados que não aparecem nos trechos), faça isso SOMENTE em seção separada, intitulada \"Informações complementares (fora da base do Oráculo)\", com a advertência: \"Estas informações não constam dos trechos fornecidos e devem ser conferidas em fonte oficial.\"",
     "7. Encerre com: \"O texto oficial do precedente, disponível no link indicado, prevalece sobre este resumo.\"",
   ].join("\n");
@@ -376,9 +381,11 @@ async function perguntarIA(destino, precedentes = false, estender = false) {
   // (abrir a aba antes tiraria o foco da pagina e o navegador recusaria a copia)
   const pergunta = perguntaAdd;
   let resP = null, citados = { ...(ultimo.citados || {}) };
+  equivalentes = "";
   if (pergunta && dobrar(pergunta) !== dobrar(ultimo.consulta)) {
     const m = await buscarOculto(pergunta, ultimo.consulta);
     resP = m.res;
+    equivalentes = m.equivalentes;
     Object.assign(citados, m.citados);
   }
   const lote = estender ? { numero: envio.lote + 1, excluir: envio.enviados, primeiro: envio.enviados.size + 1 } : null;

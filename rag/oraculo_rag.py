@@ -353,7 +353,12 @@ class Oraculo:
                   "categoria. Quando duas normas tratarem do mesmo ponto, vale a mais recente; nunca use trecho marcado como "
                   "REVOGADA ou SEM EFEITO como regra atual; se o citar, diga que não vale mais. Se a norma estiver indicada como "
                   "alterada, procure a redação da norma que a alterou. Nos precedentes, vale a situação do próprio tema: tema "
-                  "CANCELADO ou PREJUDICADO não é regra atual, e tema afetado, em julgamento ou sem tese ainda não tem tese definitiva.")
+                  "CANCELADO ou PREJUDICADO não é regra atual, e tema afetado, em julgamento ou sem tese ainda não tem tese definitiva. "
+                  "Se os trechos não tratarem de algum ponto, escreva \"os trechos encontrados não tratam disso\" e recomende nova busca ou "
+                  "consulta ao texto oficial; nunca afirme que a norma não prevê, não autoriza ou proíbe algo com base na ausência de trechos.")
+        amp = self._expandir(pergunta)[len(pergunta):].strip()
+        if amp:
+            regras += f" A pergunta pode usar linguagem do dia a dia; nas normas, o assunto pode aparecer com estes termos: {amp}."
         if self._quer_precedentes(pergunta):
             return self._mensagens(regras, self._pedido_precedentes(pergunta, tema, trechos, cit), historico)
         pedido = ("Organize a resposta com os títulos abaixo. Copie só o título, nunca o texto entre colchetes, que é instrução para você.\n\n"
