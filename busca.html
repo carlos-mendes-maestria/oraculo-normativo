@@ -6,7 +6,7 @@
 <title>Oráculo normativo do TJPI</title>
 <meta name="description" content="Busca nas normas internas do Judiciário do Piauí, com os trechos originais e um prompt pronto para o seu assistente de IA.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231f4e79'/%3E%3Cpath d='M6 12 16 6l10 6H6Zm2 2v9m5.300-9v9m5.400-9v9m5.300-9v9M5 25h22' fill='none' stroke='%23fff' stroke-width='1.800' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
-<link rel="stylesheet" href="estilo.css?v=a905b3d08f8a">
+<link rel="stylesheet" href="estilo.css?v=31214a5478e6">
 </head>
 <body>
 <header class="topo">
@@ -113,6 +113,19 @@
     <span id="contagem" class="contagem"></span>
   </div>
   <ol id="resultados" class="resultados" hidden></ol>
+  <p id="falha-area" class="falha-area" hidden><button id="falha" type="button" class="link">Não achei o que procurava</button></p>
+  <dialog id="falha-dialogo" class="falha-dialogo">
+    <form method="dialog">
+      <h2>Enviar esta consulta?</h2>
+      <p>A consulta (tema e pergunta) será usada apenas para avaliar o erro e aprimorar o sistema. Não inclua nomes, CPF, números de processo ou outros dados pessoais.</p>
+      <label for="falha-comentario">O que você esperava encontrar? (opcional)</label>
+      <input id="falha-comentario" maxlength="200" autocomplete="off">
+      <div class="falha-botoes">
+        <button id="falha-nao" type="button" class="link">Não enviar</button>
+        <button id="falha-enviar" type="button">Enviar consulta</button>
+      </div>
+    </form>
+  </dialog>
 </main>
 
 <footer class="rodape">
@@ -121,7 +134,7 @@
   <p>&copy; 2026 Carlos Mendes de Sousa. Todos os direitos reservados, exceto quanto aos textos das normas, que s&atilde;o atos oficiais p&uacute;blicos.</p>
 </footer>
 
-<script src="app.js?v=a905b3d08f8a"></script>
+<script src="app.js?v=31214a5478e6"></script>
 <script data-goatcounter="https://oraculo-normativo.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
 </body>
 </html>

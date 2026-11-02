@@ -18,12 +18,19 @@ function dobrar(t) {
   return t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
+// Radical leve: "substituir", "substituto" e "substituicao" viram a mesma palavra na busca. Numeros e palavras curtas nao mudam.
+function raiz(w) {
+  if (w.length < 6 || !/^[a-z]+$/.test(w)) return w;
+  if (w.endsWith("mente")) w = w.slice(0, -5);
+  return w.slice(0, 7).replace(/[aeio]+$/, "") || w;
+}
+
 function termos(t) {
   const out = [];
   for (let w of dobrar(t).match(/[a-z0-9]+/g) || []) {
     if (w.length < 2 || STOP.has(w)) continue;
     if (w.length > 4 && w.endsWith("s")) w = w.slice(0, -1);   // plural simples
-    out.push(w);
+    out.push(raiz(w));
   }
   return out;
 }
@@ -124,11 +131,11 @@ function umaEdicao(a, b) {
 
 function corrigir(consulta) {
   return consulta.replace(/\p{L}+/gu, (p) => {
-    const [t] = termos(p);
-    if (!t || t.length < MIN_LETRAS_CORRECAO || inv.has(t)) return p;
+    const palavra = dobrar(p), [t] = termos(palavra);
+    if (!t || palavra.length < MIN_LETRAS_CORRECAO || inv.has(t) || !palavra.startsWith(t)) return p;
     let melhor = null, df = MIN_TRECHOS_CORRECAO * 2 - 1;   // cada trecho ocupa 2 posicoes da lista
     for (const [w, l] of inv) if (l.length > df && umaEdicao(t, w)) { melhor = w; df = l.length; }
-    return melhor || p;
+    return melhor ? melhor + palavra.slice(t.length) : p;
   });
 }
 
@@ -328,7 +335,12 @@ async function buscar({ id, consulta: digitada, contexto, soVigentes, tipoNorma,
   const ampliada = expandir(consulta);
   if (ampliada !== consulta) { listas.push(topo(bm25(ampliada), 100, filtro)); pesos.push(PESO_AMPLIADA); }
   // busca da pergunta: "quantos dias podem ser vendidos?" so faz sentido junto do tema "ferias"
-  if (contexto) { listas.push(topo(bm25(`${corrigir(contexto)} ${ampliada}`), 100, filtro)); pesos.push(PESO_CONTEXTO); }
+  if (contexto) {
+    listas.push(topo(bm25(`${corrigir(contexto)} ${ampliada}`), 100, filtro)); pesos.push(PESO_CONTEXTO);
+    // so os termos das normas: a frase coloquial e o tema nao empurram o artigo certo para baixo
+    const tecnicos = ampliada.slice(consulta.length);
+    if (tecnicos) { listas.push(topo(bm25(tecnicos), 100, filtro)); pesos.push(PESO_CONTEXTO); }
+  }
   const fixos = tipoNorma && !/recedentes/.test(tipoNorma) ? [] : temasCitados(consulta);
   const ordem = [...new Set([...fixos, ...(listas.length > 1 ? rrf(listas, pesos) : listas[0])])];
   const pertinente = avaliador(consulta, ampliada, fixos), fraco = avaliadorFraco(consulta, ampliada);

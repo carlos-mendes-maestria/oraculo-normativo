@@ -1,7 +1,7 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const VERSAO = "a905b3d08f8a";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const VERSAO = "31214a5478e6";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
 const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
 
 // Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
@@ -37,6 +37,7 @@ function destacar(texto, termos) {
   return escapar(texto).replace(/[\p{L}\p{N}]+/gu, (w) => {
     let f = dobrar(w);
     if (f.length > 4 && f.endsWith("s")) f = f.slice(0, -1);
+    if (f.length >= 6 && /^[a-z]+$/.test(f)) f = (f.endsWith("mente") ? f.slice(0, -5) : f).slice(0, 7).replace(/[aeio]+$/, "") || f;   // raiz, como no worker
     return alvo.has(f) ? `<mark>${w}</mark>` : w;
   });
 }
@@ -76,11 +77,14 @@ function atualizarEstado(aviso) {
 let temaAdd = null, perguntaAdd = null, consultaGeral = false;
 
 function atualizarFluxo() {
-  const temaOk = !!temaAdd && dobrar($("q").value.trim()) === dobrar(temaAdd);
+  const tema = $("q").value.trim();
+  const temaOk = !!temaAdd && dobrar(tema) === dobrar(temaAdd);
   const escrita = $("pergunta").value.trim();
   const perguntaOk = temaOk && (consultaGeral ? !escrita : !!perguntaAdd && dobrar(escrita) === dobrar(perguntaAdd));
   const achou = !!(ultimo && ultimo.res.length);
-  const pronto = perguntaOk && achou;
+  // depois da primeira busca os botoes ficam liberados: ao clicar, o prompt sai do que esta escrito agora (sincronizarCampos)
+  const mudou = !!temaAdd && !perguntaOk && !!tema && (!!escrita || consultaGeral || !!perguntaAdd);
+  const pronto = (perguntaOk || mudou) && achou;
   const marcar = (id, estado) => {
     const c = $(id).classList;
     c.toggle("ativa", estado === "ativa"); c.toggle("feita", estado === "feita"); c.toggle("bloqueada", estado === "bloqueada");
@@ -96,9 +100,12 @@ function atualizarFluxo() {
   $("estender").hidden = !(pronto && envio);
   $("passo2").hidden = !pronto;
   $("resultados").hidden = !pronto;
+  $("falha-area").hidden = !pronto || !FORMULARIO.url;
   $("exemplos").hidden = !!temaAdd;
   if (!pronto) { $("ia-aviso").hidden = true; $("ia-texto").hidden = true; }
-  $("ia-resumo").innerHTML = pronto
+  $("ia-resumo").innerHTML = pronto && mudou
+    ? "Os campos mudaram: ao clicar em um botão, a busca é refeita com o que está escrito agora."
+    : pronto
     ? `Tudo pronto. Tema: <strong>“${escapar(temaAdd)}”</strong>. ` +
       (consultaGeral ? "<strong>Consulta geral</strong>, sem pergunta específica." : `Pergunta: <strong>“${escapar(perguntaAdd)}”</strong>.`)
     : !temaOk ? "Os botões serão liberados depois do tema e da pergunta ou consulta geral."
@@ -390,8 +397,30 @@ async function copiar(texto) {
   }
 }
 
+let fimDaBusca = null;   // resolvida quando chega o resultado da busca da tela
+
+// O prompt sempre sai do que esta escrito nos campos agora, mesmo sem clicar em "Adicionar" de novo.
+async function sincronizarCampos() {
+  const tema = $("q").value.trim(), pergunta = $("pergunta").value.trim();
+  if (tema && dobrar(tema) !== dobrar(temaAdd || "")) {
+    temaAdd = tema;
+    await new Promise((ok) => { fimDaBusca = ok; buscar(tema); });
+  }
+  if (dobrar(pergunta) !== dobrar(perguntaAdd || "")) {
+    perguntaAdd = pergunta || null; consultaGeral = !pergunta; envio = null;
+  }
+  atualizarFluxo();
+}
+
 async function perguntarIA(destino, precedentes = false, estender = false) {
+  await sincronizarCampos();
   if (!ultimo) return;
+  if (!ultimo.res.length) {
+    $("ia-aviso").textContent = "Nada encontrado para este tema. Tente outras palavras.";
+    $("ia-aviso").hidden = false;
+    return;
+  }
+  estender = estender && !!envio;
   // a busca da pergunta leva menos de 1 s: a copia e a nova aba ainda contam como acao do clique
   // (abrir a aba antes tiraria o foco da pagina e o navegador recusaria a copia)
   const pergunta = perguntaAdd;
@@ -469,6 +498,7 @@ worker.onmessage = (e) => {
     ultimoTermos = m.termos;
     m.res.slice(0, NA_TELA).forEach((r) => lista.appendChild(cartao(r, m.termos)));
     $("contagem").textContent = m.res.length ? `${Math.min(m.res.length, NA_TELA)} mais relevantes` : "";
+    if (fimDaBusca) { fimDaBusca(); fimDaBusca = null; }
     atualizarEstado(m.res.length ? (m.corrigida ? `Busca feita por: “${m.corrigida}”.` : "") : "Nada encontrado para este tema. Tente outras palavras ou desmarque “Só normas vigentes”.");
     atualizarFluxo();
   }
@@ -502,10 +532,38 @@ $("ia-chatgpt").onclick = () => { contarEvento("abrir-chatgpt"); perguntarIA("ht
 $("ia-gemini").onclick = () => { contarEvento("abrir-gemini"); perguntarIA("https://gemini.google.com/app"); };
 $("ia-copiar").onclick = () => { contarEvento("copiar-prompt"); perguntarIA(null); };
 $("ia-precedentes").onclick = () => { contarEvento("copiar-prompt-precedentes"); perguntarIA(null, true); };
-$("estender").onclick = () => perguntarIA(null, envio.precedentes, true);
+$("estender").onclick = () => perguntarIA(null, !!envio && envio.precedentes, true);
 document.querySelectorAll("#exemplos button").forEach((b) => {
   b.onclick = () => { $("q").value = b.textContent; adicionarTema(b.textContent); };
 });
+
+// "Nao achei o que procurava": so envia com autorizacao, para um Google Forms. O botao fica oculto enquanto FORMULARIO.url estiver vazio.
+const FORMULARIO = { url: "", tema: "", pergunta: "", comentario: "", versao: "", trechos: "" };   // formResponse e os entry.NNN
+
+function semDadosPessoais(t) {
+  return t.replace(/\b\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}\b/g, "[removido]")   // processo CNJ
+    .replace(/\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b/g, "[removido]")                     // CPF
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[removido]")                             // e-mail
+    .replace(/(?:\(?\b\d{2}\)?[\s-]?)?\b9?\d{4}[\s-]?\d{4}\b/g, "[removido]");      // telefone
+}
+
+function enviarFalha() {
+  const f = FORMULARIO, corpo = new URLSearchParams();
+  corpo.set(f.tema, semDadosPessoais(temaAdd || ""));
+  corpo.set(f.pergunta, semDadosPessoais(perguntaAdd || "(consulta geral)"));
+  corpo.set(f.comentario, semDadosPessoais($("falha-comentario").value.trim()));
+  corpo.set(f.versao, VERSAO || "local");
+  corpo.set(f.trechos, ((ultimo && ultimo.res) || []).slice(0, NA_TELA).map((r) => `${r.norma.nome} – ${r.rotulo}`).join("; "));
+  fetch(f.url, { method: "POST", mode: "no-cors", body: corpo }).catch(() => {});
+}
+
+$("falha").onclick = () => { contarEvento("nao-achei"); $("falha-comentario").value = ""; $("falha-dialogo").showModal(); };
+$("falha-nao").onclick = () => $("falha-dialogo").close();
+$("falha-enviar").onclick = () => {
+  enviarFalha();
+  $("falha-dialogo").close();
+  $("estado").textContent = "Consulta enviada. Obrigado.";
+};
 
 // Download da base: partes pequenas, uma por vez, com tempo limite e nova tentativa,
 // para que uma queda no 4G so obrigue a repetir a parte que caiu.

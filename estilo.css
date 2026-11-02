@@ -168,6 +168,11 @@ button:disabled { background: var(--borda); color: var(--suave); box-shadow: non
 .selo.vigente.tema { color: var(--vigente); background: var(--vigente-fundo); box-shadow: none; }
 .selo.revogada.tema { color: var(--revogada); background: var(--revogada-fundo); box-shadow: none; }
 .selo.beta { color: var(--primaria); background: var(--primaria-fundo); font-family: system-ui, sans-serif; vertical-align: middle; }
+.falha-area { text-align: center; margin: 12px 0 0; font-size: .86rem; }
+.falha-dialogo { max-width: 460px; width: calc(100% - 32px); border: 1px solid var(--borda); border-radius: 8px; background: var(--cartao-2); color: inherit; padding: 16px; }
+.falha-dialogo h2 { margin-top: 0; }
+.falha-dialogo input { width: 100%; box-sizing: border-box; margin-top: 6px; }
+.falha-botoes { display: flex; justify-content: flex-end; gap: 16px; margin-top: 14px; }
 .aviso-suspensao { margin: 8px 0 0; padding: 8px 10px; font-size: .86rem; color: var(--revogada); background: var(--revogada-fundo); border-left: 4px solid var(--revogada); border-radius: 4px; }
 .aviso-suspensao strong { text-transform: uppercase; letter-spacing: .03em; }
 .res-meta { color: var(--suave); font-size: .84rem; margin: 6px 0 0; }
