@@ -353,11 +353,11 @@ function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta, lot
 // busca da pergunta: mesma busca do worker, mas o resultado nao vai para a tela
 let idOculto = 1e6;
 const pendentes = new Map();
-function buscarOculto(consulta) {
+function buscarOculto(consulta, contexto) {
   return new Promise((ok) => {
     const id = ++idOculto;
     pendentes.set(id, ok);
-    worker.postMessage({ tipo: "buscar", id, consulta, soVigentes: $("vigentes").checked, tipoNorma: $("tipo").value, limite: TOTAL_DA_BUSCA });
+    worker.postMessage({ tipo: "buscar", id, consulta, contexto, soVigentes: $("vigentes").checked, tipoNorma: $("tipo").value, limite: TOTAL_DA_BUSCA });
   });
 }
 
@@ -377,7 +377,7 @@ async function perguntarIA(destino, precedentes = false, estender = false) {
   const pergunta = perguntaAdd;
   let resP = null, citados = { ...(ultimo.citados || {}) };
   if (pergunta && dobrar(pergunta) !== dobrar(ultimo.consulta)) {
-    const m = await buscarOculto(pergunta);
+    const m = await buscarOculto(pergunta, ultimo.consulta);
     resP = m.res;
     Object.assign(citados, m.citados);
   }

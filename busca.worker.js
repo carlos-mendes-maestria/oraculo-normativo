@@ -96,6 +96,7 @@ function rrf(listas, pesos, k = 60) {
 // A pergunta ampliada entra como uma 3a lista, com peso 0,5, so na busca por palavras (testar_busca.py, 28/10).
 let sinonimos = [];
 const PESO_AMPLIADA = 0.5;
+const PESO_CONTEXTO = 2;     // busca da pergunta junto com o tema: costuma ser a lista mais precisa do conjunto
 
 function escaparRx(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
@@ -109,16 +110,16 @@ function expandir(consulta) {
   return extra.length ? consulta + " " + extra.join(" ") : consulta;
 }
 
-// Erro de digitacao: palavra fora do vocabulario, com 6 letras ou mais, troca pela mais frequente a uma edicao de distancia.
+// Erro de digitacao: palavra fora do vocabulario, com 6 letras ou mais, troca pela mais frequente que difira em uma letra
+// trocada ou duas invertidas. O fim da palavra fica de fora: "trabalhei" e conjugacao, nao erro, e nao vira "trabalhe".
 const MIN_LETRAS_CORRECAO = 6, MIN_TRECHOS_CORRECAO = 3;
 
 function umaEdicao(a, b) {
-  if (Math.abs(a.length - b.length) > 1 || a === b) return false;
+  if (a.length !== b.length || a === b) return false;
   let i = 0;
-  while (i < a.length && i < b.length && a[i] === b[i]) i++;
-  if (a.length === b.length)
-    return a.slice(i + 1) === b.slice(i + 1) || (a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2));
-  return a.length < b.length ? a.slice(i) === b.slice(i + 1) : a.slice(i + 1) === b.slice(i);
+  while (a[i] === b[i]) i++;
+  if (i >= a.length - 2) return false;
+  return a.slice(i + 1) === b.slice(i + 1) || (a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2));
 }
 
 function corrigir(consulta) {
@@ -295,7 +296,7 @@ function temasCitados(consulta) {
   return out;
 }
 
-async function buscar({ id, consulta: digitada, soVigentes, tipoNorma, maxPorNorma = 3, limite = 30 }) {
+async function buscar({ id, consulta: digitada, contexto, soVigentes, tipoNorma, maxPorNorma = 3, limite = 30 }) {
   const consulta = corrigir(digitada);
   const filtro = (i) => {
     const m = normas[trechos[i][0]];
@@ -310,6 +311,8 @@ async function buscar({ id, consulta: digitada, soVigentes, tipoNorma, maxPorNor
   }
   const ampliada = expandir(consulta);
   if (ampliada !== consulta) { listas.push(topo(bm25(ampliada), 100, filtro)); pesos.push(PESO_AMPLIADA); }
+  // busca da pergunta: "quantos dias podem ser vendidos?" so faz sentido junto do tema "ferias"
+  if (contexto) { listas.push(topo(bm25(`${corrigir(contexto)} ${ampliada}`), 100, filtro)); pesos.push(PESO_CONTEXTO); }
   const fixos = tipoNorma && !/recedentes/.test(tipoNorma) ? [] : temasCitados(consulta);
   const ordem = [...new Set([...fixos, ...(listas.length > 1 ? rrf(listas, pesos) : listas[0])])];
   const pertinente = avaliador(consulta, ampliada, fixos);
