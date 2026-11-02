@@ -1,7 +1,20 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const worker = new Worker("busca.worker.js", { type: "module" });
+const VERSAO = "ca145532dd63";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
+
+// Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
+function conferirVersao(atual = VERSAO) {
+  if (!atual) return;
+  fetch("versao.json?" + Date.now()).then((r) => r.json()).then(({ v }) => {
+    const url = new URL(location.href);
+    if (v === atual || url.searchParams.get("v") === v) return;
+    url.searchParams.set("v", v);
+    location.replace(url);
+  }).catch(() => {});
+}
+conferirVersao();
 const NA_TELA = 10;          // cartoes mostrados (ate 3 por norma)
 const TRECHOS_NA_IA = 14;    // consulta geral: mais trechos, para a explicacao minuciosa (ate 2 por norma)
 const POR_NORMA_NA_IA = 2;
