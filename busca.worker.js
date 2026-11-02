@@ -110,9 +110,9 @@ function expandir(consulta) {
   return extra.length ? consulta + " " + extra.join(" ") : consulta;
 }
 
-// Erro de digitacao: palavra fora do vocabulario, com 6 letras ou mais, troca pela mais frequente que difira em uma letra
+// Erro de digitacao: palavra fora do vocabulario, com 8 letras ou mais, troca pela mais frequente que difira em uma letra
 // trocada ou duas invertidas. O fim da palavra fica de fora: "trabalhei" e conjugacao, nao erro, e nao vira "trabalhe".
-const MIN_LETRAS_CORRECAO = 6, MIN_TRECHOS_CORRECAO = 3;
+const MIN_LETRAS_CORRECAO = 8, MIN_TRECHOS_CORRECAO = 3;
 
 function umaEdicao(a, b) {
   if (a.length !== b.length || a === b) return false;
