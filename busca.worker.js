@@ -366,7 +366,63 @@ async function buscar({ id, consulta: digitada, contexto, soVigentes, tipoNorma,
       }
     }
   }
-  postMessage({ tipo: "resultado", id, modo, res, citados, termos: [...new Set(termos(consulta))], corrigida: consulta !== digitada ? consulta : "", equivalentes: ampliada.slice(consulta.length).trim() });
+  // trecho que termina num titulo ("Seção II – Da Substituição") ou cortado no meio: o seguinte da mesma norma vai junto
+  for (const r of res.slice(0, 40)) {
+    const s = seguinte(r.idx);
+    if (s !== null) r.seguinte = { rotulo: trechos[s][1], texto: trechos[s][3] };
+  }
+  postMessage({ tipo: "resultado", id, modo, res, citados, tabela: tabelaRetribuicao(`${digitada} ${contexto || ""}`, filtro),
+               termos: [...new Set(termos(consulta))], corrigida: consulta !== digitada ? consulta : "", equivalentes: ampliada.slice(consulta.length).trim() });
+}
+
+// ---------------------------------------------------------------- continuacao e tabela de retribuicao
+const RX_TITULO = /^(t[íi]tulo|cap[íi]tulo|se[çc][ãa]o|subse[çc][ãa]o)\b/i;
+
+function seguinte(i) {
+  const [n, , , texto, tema] = trechos[i];
+  if (tema || i + 1 >= trechos.length || trechos[i + 1][0] !== n) return null;
+  const linhas = texto.trim().split("\n").map((l) => l.trim()).filter(Boolean);
+  const ult = linhas[linhas.length - 1] || "", pen = linhas[linhas.length - 2] || "";
+  const titulo = RX_TITULO.test(ult) || (RX_TITULO.test(pen) && ult.length < 90 && !/[.;:]$/.test(ult));
+  const cortado = /\(parte \d+\)$/.test(trechos[i + 1][1]) && !/[.;:)”"]$/.test(ult);
+  return titulo || cortado ? i + 1 : null;
+}
+
+// Pergunta sobre valor de cargo em comissao ou funcao de confianca: o valor esta no Quadro II do Anexo VII da LC 230/2017,
+// por simbolo (CC/04, FC/02), e o simbolo de cada cargo nos quadros do Anexo VIII. Os dois trechos nunca saem juntos na busca.
+const RX_VALOR = /\b(gratificac|remunerac|retribuic|valor|quanto (ganha|recebe|paga)|salario|vencimento|simbolo)/;
+const RX_CARGO = /\b(diretor|secretari|assessor|assistente|gestor|gerente|oficial|coordenador|chefe|comissionad|cargo em comissao|funcao|cc|fc)\b/;
+let quadroValores = null, quadroGeral = null, quadrosSimbolos = null;
+
+function tabelaRetribuicao(texto, filtro) {
+  const f = dobrar(texto);
+  if (!RX_VALOR.test(f) || !RX_CARGO.test(f)) return null;
+  const ano = (i) => parseInt(normas[trechos[i][0]].ano, 10) || 0;
+  if (!quadroValores) {
+    quadroValores = [], quadroGeral = [], quadrosSimbolos = [];
+    trechos.forEach(([n, , , t], i) => {
+      if (normas[n].situacao === "revogada") return;
+      if (/Retribui[çc][ãa]o pelo exerc[íi]cio de cargo de dire[çc][ãa]o/i.test(t) && /CC\/01\s+[\d.]+,\d\d/.test(t)) quadroValores.push(i);
+      else if (/Quadro Geral de cargos em comiss[ãa]o e fun[çc][õo]es de confian[çc]a/i.test(t)) quadroGeral.push(i);
+      else if (/Cargo\/Fun[çc][ãa]o/i.test(t) && /\b(CC|FC)\/\d/.test(t)) quadrosSimbolos.push(i);
+    });
+    // a lei antes da resolucao que a republica; entre leis, a mais recente
+    const lei = (i) => /complementar/i.test(normas[trechos[i][0]].tipo) ? 1 : 0;
+    for (const q of [quadroValores, quadroGeral]) q.sort((a, b) => lei(b) - lei(a) || ano(b) - ano(a));
+  }
+  if (!quadroValores.length) return null;
+  // simbolo do cargo: o Quadro I do Anexo VII (quadro geral, por simbolo) e o quadro da unidade mais parecido com a pergunta, sem as palavras de valor; entre os parecidos, o mais recente
+  const s = bm25(f.replace(/\b(qual|o|a|valor|da|do|de|gratificacao|remuneracao|retribuicao|quanto|ganha|recebe|um|uma|salario)\b/g, " "));
+  const cands = quadrosSimbolos.filter((i) => s[i] > 0 && filtro(i)).sort((a, b) => s[b] - s[a]).slice(0, 6);
+  const corte = cands.length ? s[cands[0]] * 0.7 : 0;
+  const simbolos = [], vistas = new Set();
+  for (const i of cands.filter((i) => s[i] >= corte).sort((a, b) => ano(b) - ano(a))) {
+    if (vistas.has(trechos[i][0])) continue;
+    vistas.add(trechos[i][0]); simbolos.push(i);
+    if (simbolos.length >= 2) break;
+  }
+  const item = (i) => ({ idx: i, norma: normas[trechos[i][0]], rotulo: trechos[i][1], texto: trechos[i][3] });
+  return { valores: item(quadroValores[0]), simbolos: [...quadroGeral.slice(0, 1), ...simbolos].map(item) };
 }
 
 onmessage = (e) => {

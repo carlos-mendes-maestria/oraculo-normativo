@@ -1,7 +1,7 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const VERSAO = "31214a5478e6";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const VERSAO = "6419468f6dfd";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
 const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
 
 // Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
@@ -203,6 +203,10 @@ const REGRA_AUSENCIA = "Se os trechos não tratarem de algum ponto, escreva \"os
 let equivalentes = "";   // termos das normas para a linguagem da pergunta (dicionario de equivalencias)
 const TRECHOS_ASSUNTO_COM_PERGUNTA = 7;   // com pergunta: 7 do assunto + ate 7 da pergunta
 const TRECHOS_PERGUNTA = 7;
+// pergunta concreta (valor, prazo, quantos dias): a resposta costuma estar num artigo so, entao a pergunta leva mais vagas
+const RX_CONCRETA = /\b(valor|valores|quanto|quanta|quantos|quantas|prazo|percentual|idade|horas?|n[úu]mero|dias)\b/i;
+const TRECHOS_ASSUNTO_CONCRETA = 4, TRECHOS_PERGUNTA_CONCRETA = 10;
+const MAX_CONTINUACOES = 4;   // trechos seguintes anexados (terminam em titulo ou cortados); nao contam no limite de 14
 
 function cabecalho(n, rotulo, sitTema) {
   const sit = sitTema || (n.superada ? "sem efeito, alterou norma revogada" : situacao(n));
@@ -220,18 +224,34 @@ function avisoContinuacao(lote) {
   ];
 }
 
-function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote) {
+function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote, tabela) {
   const temPergunta = pergunta && resPergunta;
+  const concreta = temPergunta && RX_CONCRETA.test(pergunta);
   const excluir = lote ? lote.excluir : new Set();
   const inicio = lote ? lote.primeiro - 1 : 0;
   const blocoA = lote ? escolherParaIA(resAssunto, temPergunta ? TRECHOS_POR_LOTE / 2 : TRECHOS_POR_LOTE, excluir)
-                      : escolherParaIA(resAssunto, temPergunta ? TRECHOS_ASSUNTO_COM_PERGUNTA : TRECHOS_NA_IA);
-  const blocoB = temPergunta ? escolherParaIA(resPergunta, lote ? TRECHOS_POR_LOTE - blocoA.length : TRECHOS_PERGUNTA,
+                      : escolherParaIA(resAssunto, !temPergunta ? TRECHOS_NA_IA : concreta ? TRECHOS_ASSUNTO_CONCRETA : TRECHOS_ASSUNTO_COM_PERGUNTA);
+  const blocoB = temPergunta ? escolherParaIA(resPergunta, lote ? TRECHOS_POR_LOTE - blocoA.length : concreta ? TRECHOS_PERGUNTA_CONCRETA : TRECHOS_PERGUNTA,
                                               new Set([...excluir, ...blocoA.map((r) => r.idx)])) : [];
   const todos = [...blocoA, ...blocoB];
   if (!todos.length) return { texto: "", usados: [] };
   const fonte = (r) => r.linkTema ? `Fonte: ${fonteTema(r.norma)}. Link oficial: ${r.linkTema}\nSuspensão nacional: ${r.suspensao}\n` : "";
-  const texto = (lista, ini) => lista.map((r, i) => `[${ini + i + 1}] ${cabecalho(r.norma, r.rotulo, r.situacaoTema)}\n${fonte(r)}${r.texto}`).join("\n\n");
+  const noPedido = new Set(todos.map((r) => r.idx));
+  let continuacoes = 0;
+  const continuacao = (r) => {
+    if (!r.seguinte || continuacoes >= MAX_CONTINUACOES || noPedido.has(r.idx + 1)) return "";
+    continuacoes++;
+    return `\n(continuação: trecho seguinte da mesma norma, ${r.seguinte.rotulo})\n${r.seguinte.texto}`;
+  };
+  const texto = (lista, ini) => lista.map((r, i) => `[${ini + i + 1}] ${cabecalho(r.norma, r.rotulo, r.situacaoTema)}\n${fonte(r)}${r.texto}${continuacao(r)}`).join("\n\n");
+  const blocoTabela = tabela && !lote ? [
+    "TABELA DE RETRIBUIÇÃO DOS CARGOS EM COMISSÃO E FUNÇÕES DE CONFIANÇA (anexada porque a pergunta trata do valor de cargo ou função):",
+    "Primeiro localize o símbolo do cargo ou da função (CC/0x ou FC/0x) nos quadros de cargos; depois, o valor desse símbolo no Quadro II do Anexo VII da LC nº 230/2017.",
+    `Atenção: os valores abaixo são os da redação dada pela ${tabela.valores.norma.nome}${tabela.valores.norma.arquivo === "Lei_Complementar_284_2023" ? " (atualizados até maio de 2023)" : ""} e podem ter tido reajuste posterior. Diga isso na resposta e recomende conferir a tabela vigente no Portal da Transparência do TJPI.`,
+    `[T1] ${cabecalho(tabela.valores.norma, tabela.valores.rotulo)}\n${tabela.valores.texto}`,
+    ...tabela.simbolos.map((r, j) => `[T${j + 2}] ${cabecalho(r.norma, r.rotulo)} – quadro de cargos e símbolos\n${r.texto}`),
+    "",
+  ] : [];
   // artigos de outras normas citados nos trechos escolhidos ("art. 81 do Regimento Interno")
   const ordemCit = new Map(), enviados = new Set(todos.map((r) => r.idx));
   todos.forEach((r, i) => (r.cita || []).forEach((t) => {
@@ -275,6 +295,12 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote)
     "- Termine a seção avisando que esse conteúdo não veio das normas consultadas e precisa ser conferido no texto oficial antes de ser usado.",
     "- Nunca misture esse conteúdo nas partes anteriores. Se elas já bastarem, não escreva esta seção.",
     "",
+    `${pergunta ? "PARTE 4" : "PARTE 3"} – NOVA BUSCA SUGERIDA (somente se as partes anteriores não responderam por completo).`,
+    "- O Oráculo encontra trechos por semelhança de sentido e de palavras, usando os termos das normas. Funciona melhor com termos técnicos usados nas normas (ex.: teletrabalho em vez de home office, retribuição em vez de gratificação), com tema curto (2 a 4 palavras) e pergunta objetiva.",
+    "- Use os trechos recebidos como pista: aproveite os termos que as normas usam e as normas ou anexos que elas citam ou alteram, e indique, quando houver, qual norma citada nos trechos parece conter a resposta.",
+    "- Se algum trecho terminar cortado ou terminar num título (Seção, Subseção, Capítulo) que anuncia o assunto da pergunta, avise que a continuação não foi enviada e sugira busca com as palavras desse título e o número da norma.",
+    "- Sugira até 3 novas tentativas no formato Tema: ... | Pergunta: ..., com uma linha explicando por que cada uma pode encontrar a norma. Não invente número de norma ou artigo.",
+    "",
     `TEMA PESQUISADO: ${assunto}`,
     pergunta ? `PERGUNTA DO USUÁRIO: ${pergunta}` : "PERGUNTA DO USUÁRIO: nenhuma (consulta geral sobre o tema)",
     "",
@@ -282,6 +308,7 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote)
     texto(blocoA, inicio),
     "",
     ...(blocoB.length ? ["TRECHOS ENCONTRADOS PARA A PERGUNTA:", texto(blocoB, inicio + blocoA.length), ""] : []),
+    ...blocoTabela,
     ...(blocosCit.length ? [
       "TRECHOS CITADOS (artigos de normas mencionados nos trechos acima; use-os para completar a resposta quando o trecho remeter a eles):",
       blocosCit.join("\n\n"),
@@ -372,7 +399,8 @@ function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta, lot
     "4. Depois das fichas, escreva \"Aplicação à pergunta\": explique em linguagem clara como a(s) tese(s) responde(m) à pergunta e aponte elementos que poderiam afastar a aplicação (distinção), se o próprio trecho os indicar.",
     `5. Se nenhum trecho contiver precedente ou súmula pertinente, diga isso claramente. Não invente número, data, tese ou órgão julgador. ${REGRA_AUSENCIA}`,
     "6. Se julgar útil trazer informação que não está nos trechos (por exemplo, precedentes ou julgados que não aparecem nos trechos), faça isso SOMENTE em seção separada, intitulada \"Informações complementares (fora da base do Oráculo)\", com a advertência: \"Estas informações não constam dos trechos fornecidos e devem ser conferidas em fonte oficial.\"",
-    "7. Encerre com: \"O texto oficial do precedente, disponível no link indicado, prevalece sobre este resumo.\"",
+    "7. NOVA BUSCA SUGERIDA (somente se os trechos não responderam por completo): o Oráculo encontra trechos por semelhança de sentido e de palavras e funciona melhor com os termos técnicos usados nos precedentes (ex.: o instituto jurídico, \"recurso repetitivo\", \"repercussão geral\", o número do tema), com tema curto (2 a 4 palavras) e pergunta objetiva. Use os trechos como pista (termos, temas e dispositivos legais citados) e sugira até 3 novas tentativas no formato Tema: ... | Pergunta: ..., com uma linha explicando por que cada uma pode encontrar o precedente. Não invente número de tema, súmula ou processo.",
+    "8. Encerre com: \"O texto oficial do precedente, disponível no link indicado, prevalece sobre este resumo.\"",
   ].join("\n");
   return { texto, usados: lista };
 }
@@ -424,12 +452,13 @@ async function perguntarIA(destino, precedentes = false, estender = false) {
   // a busca da pergunta leva menos de 1 s: a copia e a nova aba ainda contam como acao do clique
   // (abrir a aba antes tiraria o foco da pagina e o navegador recusaria a copia)
   const pergunta = perguntaAdd;
-  let resP = null, citados = { ...(ultimo.citados || {}) };
+  let resP = null, citados = { ...(ultimo.citados || {}) }, tabela = ultimo.tabela;
   equivalentes = "";
   if (pergunta && dobrar(pergunta) !== dobrar(ultimo.consulta)) {
     const m = await buscarOculto(pergunta, ultimo.consulta);
     resP = m.res;
     equivalentes = m.equivalentes;
+    tabela = m.tabela || tabela;
     Object.assign(citados, m.citados);
   }
   const lote = estender ? { numero: envio.lote + 1, excluir: envio.enviados, primeiro: envio.enviados.size + 1 } : null;
@@ -437,7 +466,7 @@ async function perguntarIA(destino, precedentes = false, estender = false) {
   const resA = rebaixar(enxuto ? pertinentes(ultimo.res) : ultimo.res);
   resP = resP && rebaixar(enxuto ? pertinentes(resP) : resP);
   const { texto: pedido, usados } = precedentes ? montarPedidoPrecedentes(ultimo.consulta, resA, pergunta, resP, lote)
-                                                : montarPedido(ultimo.consulta, resA, pergunta, resP, citados, lote);
+                                                : montarPedido(ultimo.consulta, resA, pergunta, resP, citados, lote, tabela);
   if (!usados.length) {
     $("ia-aviso").textContent = "Não há mais trechos nesta busca: todos os encontrados já foram enviados.";
     $("ia-aviso").hidden = false;
@@ -495,6 +524,7 @@ worker.onmessage = (e) => {
     lista.innerHTML = "";
     ultimo.res = m.res;
     ultimo.citados = m.citados;
+    ultimo.tabela = m.tabela;
     ultimoTermos = m.termos;
     m.res.slice(0, NA_TELA).forEach((r) => lista.appendChild(cartao(r, m.termos)));
     $("contagem").textContent = m.res.length ? `${Math.min(m.res.length, NA_TELA)} mais relevantes` : "";
@@ -538,7 +568,8 @@ document.querySelectorAll("#exemplos button").forEach((b) => {
 });
 
 // "Nao achei o que procurava": so envia com autorizacao, para um Google Forms. O botao fica oculto enquanto FORMULARIO.url estiver vazio.
-const FORMULARIO = { url: "", tema: "", pergunta: "", comentario: "", versao: "", trechos: "" };   // formResponse e os entry.NNN
+const FORMULARIO = { url: "https://docs.google.com/forms/d/e/1FAIpQLScmWbI0UclJ7fsQ0ObCJFdgFpzwMo1vpnnWc7OEVMEltM5iVw/formResponse",
+  tema: "entry.999084937", pergunta: "entry.2146385897", comentario: "entry.1119120063", versao: "entry.554524928", trechos: "entry.74192523", resposta: "entry.806851156" };   // formResponse e os entry.NNN
 
 function semDadosPessoais(t) {
   return t.replace(/\b\d{7}-?\d{2}\.?\d{4}\.?\d\.?\d{2}\.?\d{4}\b/g, "[removido]")   // processo CNJ
@@ -552,12 +583,13 @@ function enviarFalha() {
   corpo.set(f.tema, semDadosPessoais(temaAdd || ""));
   corpo.set(f.pergunta, semDadosPessoais(perguntaAdd || "(consulta geral)"));
   corpo.set(f.comentario, semDadosPessoais($("falha-comentario").value.trim()));
-  corpo.set(f.versao, VERSAO || "local");
-  corpo.set(f.trechos, ((ultimo && ultimo.res) || []).slice(0, NA_TELA).map((r) => `${r.norma.nome} – ${r.rotulo}`).join("; "));
+  if (f.resposta) corpo.set(f.resposta, semDadosPessoais($("falha-resposta").value.trim().slice(0, 8000)));
+  corpo.set(f.versao, `${typeof textoVersao === "string" ? textoVersao : "Versão beta"} [${VERSAO || "local"}]`);
+  corpo.set(f.trechos, ((ultimo && ultimo.res) || []).slice(0, NA_TELA).map((r) => `${r.norma.nome} – ${r.rotulo}`).join("; ").slice(0, 500));
   fetch(f.url, { method: "POST", mode: "no-cors", body: corpo }).catch(() => {});
 }
 
-$("falha").onclick = () => { contarEvento("nao-achei"); $("falha-comentario").value = ""; $("falha-dialogo").showModal(); };
+$("falha").onclick = () => { contarEvento("nao-achei"); $("falha-comentario").value = ""; $("falha-resposta").value = ""; $("falha-dialogo").showModal(); };
 $("falha-nao").onclick = () => $("falha-dialogo").close();
 $("falha-enviar").onclick = () => {
   enviarFalha();

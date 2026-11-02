@@ -51,6 +51,8 @@
      "acrescenta": "plano de saude auxilio-saude"},
     {"se": ["gratificacao", "adicional"],
      "acrescenta": "gratificacao adicional vantagem"},
+    {"se": ["valor da gratificacao", "gratificacao do", "gratificacao da", "quanto ganha", "quanto recebe", "salario", "valor do cargo", "valor da funcao", "remuneracao do cargo", "remuneracao da funcao", "valor do cc", "valor da fc"],
+     "acrescenta": "retribuicao representacao simbolo cargo em comissao funcao de confianca"},
     {"se": ["vender ferias", "vender as ferias", "vender minhas ferias", "vender parte das ferias", "vender dias", "vender 10 dias", "venda de ferias", "ferias vendidas", "dias vendidos", "ser vendidos", "ser vendido", "posso vender", "pode vender", "receber ferias em dinheiro", "trocar ferias por dinheiro"],
      "acrescenta": "abono pecuniario conversao pecunia terco ferias"},
     {"se": ["adicional de ferias", "terco de ferias", "terco das ferias"],

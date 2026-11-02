@@ -369,6 +369,15 @@ class Oraculo:
                   '⚠️ ATENÇÃO – INFORMAÇÃO FORA DAS NORMAS DO ACERVO (CONFERIR)\n[Use este título somente se a Parte 2 não responder por completo: '
                   "traga seu conhecimento geral, a fonte provável e o aviso de que isso precisa ser conferido no texto oficial. "
                   "Se a Parte 2 bastar, encerre nela, sem este título e sem comentar sobre ele.]\n\n"
+                  "NOVA BUSCA SUGERIDA\n[Use este título somente se as partes anteriores não responderam por completo. "
+                  "O Oráculo encontra trechos por semelhança de sentido e de palavras, usando os termos das normas. Funciona melhor com "
+                  "termos técnicos usados nas normas (ex.: teletrabalho em vez de home office, retribuição em vez de gratificação), com tema "
+                  "curto (2 a 4 palavras) e pergunta objetiva. Use os trechos recebidos como pista: aproveite os termos que as normas usam e "
+                  "as normas ou anexos que elas citam ou alteram, e indique, quando houver, qual norma citada nos trechos parece conter a "
+                  "resposta. Se algum trecho terminar cortado ou terminar num título (Seção, Subseção, Capítulo) que anuncia o assunto da "
+                  "pergunta, avise que a continuação não foi enviada e sugira busca com as palavras desse título e o número da norma. "
+                  "Sugira até 3 novas tentativas no formato Tema: ... | Pergunta: ..., com uma linha explicando por que cada uma pode "
+                  "encontrar a norma. Não invente número de norma ou artigo.]\n\n"
                   f"PERGUNTA: {pergunta}\n\nTRECHOS:\n{trechos}" + (f"\n\nTRECHOS CITADOS PELOS ACIMA:\n{cit}" if cit else ""))
         return self._mensagens(regras, pedido, historico)
 
@@ -401,6 +410,9 @@ class Oraculo:
                 "Fonte: [referência [n] e link oficial]\n\n"
                 "Depois das fichas, escreva \"Aplicação à pergunta\": explique em linguagem clara como a tese responde à pergunta. "
                 "Se nenhum trecho for pertinente, diga isso. Não invente número, data, tese ou órgão julgador. "
+                "Se os trechos não responderem por completo, sugira até 3 novas buscas no formato Tema: ... | Pergunta: ..., com os termos "
+                "técnicos usados nos precedentes (o instituto jurídico, recurso repetitivo, repercussão geral, o número do tema citado "
+                "nos trechos) e uma linha explicando por que cada uma pode encontrar o precedente, sem inventar número de tema ou súmula. "
                 "Encerre com: \"O texto oficial do precedente, disponível no link indicado, prevalece sobre este resumo.\"\n\n"
                 f"PERGUNTA: {pergunta}\n\nTRECHOS:\n{trechos}" + (f"\n\nTRECHOS CITADOS PELOS ACIMA:\n{cit}" if cit else ""))
 

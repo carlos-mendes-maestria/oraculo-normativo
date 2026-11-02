@@ -171,7 +171,8 @@ button:disabled { background: var(--borda); color: var(--suave); box-shadow: non
 .falha-area { text-align: center; margin: 12px 0 0; font-size: .86rem; }
 .falha-dialogo { max-width: 460px; width: calc(100% - 32px); border: 1px solid var(--borda); border-radius: 8px; background: var(--cartao-2); color: inherit; padding: 16px; }
 .falha-dialogo h2 { margin-top: 0; }
-.falha-dialogo input { width: 100%; box-sizing: border-box; margin-top: 6px; }
+.falha-dialogo input, .falha-dialogo textarea { width: 100%; box-sizing: border-box; margin-top: 6px; font: inherit; }
+.falha-dialogo textarea { display: block; margin-bottom: 10px; resize: vertical; }
 .falha-botoes { display: flex; justify-content: flex-end; gap: 16px; margin-top: 14px; }
 .aviso-suspensao { margin: 8px 0 0; padding: 8px 10px; font-size: .86rem; color: var(--revogada); background: var(--revogada-fundo); border-left: 4px solid var(--revogada); border-radius: 4px; }
 .aviso-suspensao strong { text-transform: uppercase; letter-spacing: .03em; }
