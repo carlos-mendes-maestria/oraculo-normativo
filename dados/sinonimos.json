@@ -7,6 +7,8 @@
      "acrescenta": "magistrado magistrados"},
     {"se": ["idade limite", "idade maxima", "idade para aposentar", "se aposentar", "aposentar", "aposento"],
      "acrescenta": "aposentadoria compulsoria voluntaria idade"},
+    {"se": ["aposentadoria compulsoria", "compulsoria", "idade limite"],
+     "acrescenta": "compulsoriamente setenta e cinco 75 anos proventos proporcionais"},
     {"se": ["licenca maternidade", "licenca-maternidade", "gravida", "gravidez", "parto"],
      "acrescenta": "licenca gestante adotante"},
     {"se": ["home office", "trabalho remoto", "trabalhar de casa", "trabalho a distancia", "remoto", "remotamente", "trabalhar remotamente", "trabalhar a distancia", "a distancia", "trabalhar em casa", "trabalho em casa", "nao presencial", "fora do forum"],
