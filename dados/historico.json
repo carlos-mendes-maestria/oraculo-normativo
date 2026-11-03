@@ -1,5 +1,19 @@
 [
  {
+  "data": "2026-11-03",
+  "normas": 1773,
+  "vigentes": 1616,
+  "trechos": 29795,
+  "nota": "Nova verificação de revogações a cada atualização: a Resolução nº 261/2022 passa a constar revogada pela Resolução nº 349/2023 (o art. 5º cita \"261/2021\", erro de ano confirmado pelo assunto), e os Provimento nº 66/2020 e Resolução nº 19/2014, pelas notas de revogação no próprio texto.",
+  "adicionadas": [],
+  "retiradas": [],
+  "revogadas": [
+   "Provimento nº 66/2020",
+   "Resolução nº 19/2014",
+   "Resolução nº 261/2022"
+  ]
+ },
+ {
   "data": "2026-11-01",
   "normas": 1773,
   "vigentes": 1612,

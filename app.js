@@ -1,7 +1,7 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const VERSAO = "d5035caad06a";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const VERSAO = "634eaedd1db0";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
 const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
 
 // Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
@@ -586,15 +586,26 @@ function enviarFalha() {
   if (f.resposta) corpo.set(f.resposta, semDadosPessoais($("falha-resposta").value.trim().slice(0, 8000)));
   corpo.set(f.versao, `${typeof textoVersao === "string" ? textoVersao : "Versão beta"} [${VERSAO || "local"}]`);
   corpo.set(f.trechos, ((ultimo && ultimo.res) || []).slice(0, NA_TELA).map((r) => `${r.norma.nome} – ${r.rotulo}`).join("; ").slice(0, 500));
-  fetch(f.url, { method: "POST", mode: "no-cors", body: corpo }).catch(() => {});
+  // Sem cookies: com a conta Google logada no navegador o envio podia nao chegar; keepalive conclui mesmo se a aba fechar.
+  // Se o navegador bloquear (extensao, rede), devolve o link do formulario ja preenchido para enviar manualmente.
+  return fetch(f.url, { method: "POST", mode: "no-cors", credentials: "omit", keepalive: corpo.toString().length < 60000, body: corpo })
+    .then(() => null, () => {
+      corpo.delete(f.resposta);
+      return f.url.replace("formResponse", "viewform") + "?usp=pp_url&" + corpo.toString().slice(0, 6000);
+    });
 }
 
 $("falha").onclick = () => { contarEvento("nao-achei"); $("falha-comentario").value = ""; $("falha-resposta").value = ""; $("falha-dialogo").showModal(); };
 $("falha-nao").onclick = () => $("falha-dialogo").close();
-$("falha-enviar").onclick = () => {
-  enviarFalha();
+$("falha-enviar").onclick = async () => {
+  $("falha-enviar").disabled = true;
+  $("estado").textContent = "Enviando a consulta...";
+  const link = await enviarFalha();
+  $("falha-enviar").disabled = false;
   $("falha-dialogo").close();
-  $("estado").textContent = "Consulta enviada. Obrigado.";
+  if (!link) { $("estado").textContent = "Consulta enviada. Obrigado."; return; }
+  $("estado").innerHTML = "O navegador bloqueou o envio automático. " +
+    `<a href="${escapar(link)}" target="_blank" rel="noopener">Abra o formulário já preenchido</a> e clique em Enviar.`;
 };
 
 // Download da base: partes pequenas, uma por vez, com tempo limite e nova tentativa,
