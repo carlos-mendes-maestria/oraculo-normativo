@@ -9,6 +9,8 @@
      "acrescenta": "aposentadoria compulsoria voluntaria idade"},
     {"se": ["aposentadoria compulsoria", "compulsoria", "idade limite"],
      "acrescenta": "compulsoriamente setenta e cinco 75 anos proventos proporcionais"},
+    {"se": ["horario de expediente", "horario do expediente", "horario de funcionamento", "que horas abre", "que horas fecha", "expediente forense"],
+     "acrescenta": "horario de expediente 8h 17h 14h unidades judiciarias entrancia"},
     {"se": ["roubado", "roubada", "furtado", "furtada", "perdi", "perdido", "perdida", "extraviado", "extraviada"],
      "acrescenta": "perda roubo furto boletim de ocorrencia"},
     {"se": ["celular do trabalho", "celular funcional", "celular corporativo", "celular institucional", "telefone do trabalho"],
