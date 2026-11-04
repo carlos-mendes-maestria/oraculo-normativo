@@ -1,6 +1,19 @@
 [
  {
   "data": "2026-11-03",
+  "normas": 1771,
+  "vigentes": 1614,
+  "trechos": 29785,
+  "nota": "Os nomes das normas passam a indicar o órgão que editou o ato (ex.: Provimento Conjunto, Provimento da CGJ, Provimento da Presidência, Provimento da Vice-Corregedoria) e marcam o texto atualizado. Saem duas cópias repetidas (a Resolução nº 366/2023 original, mantida a versão atualizada, e uma compilação antiga da LC nº 230/2017 que estava com o nome da LC nº 237/2018). Nos textos compilados, a redação antiga de um artigo deixa de ser apresentada quando a nova redação está no mesmo texto.",
+  "adicionadas": [],
+  "retiradas": [
+   "Lei Complementar nº 237/2018",
+   "Resolução nº 366/2023"
+  ],
+  "revogadas": []
+ },
+ {
+  "data": "2026-11-03",
   "normas": 1773,
   "vigentes": 1616,
   "trechos": 29795,

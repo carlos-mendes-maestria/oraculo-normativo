@@ -133,7 +133,7 @@ class Oraculo:
                           for g in self.grupos]
 
     def _texto_rag(self, t):
-        return " | ".join(p for p in (self.normas[t[0]]["nome"], t[1], t[2], t[3]) if p)
+        return " | ".join(p for p in (self.normas[t[0]].get("b") or self.normas[t[0]]["nome"], t[1], t[2], t[3]) if p)
 
     def _tema(self, i):
         """Tema do STF ou do STJ: {"s": situacao, "u": link}. Normas e demais trechos nao tem."""
@@ -152,7 +152,7 @@ class Oraculo:
     def _montar_bm25(self):
         self.inv, self.comp = defaultdict(list), np.zeros(len(self.trechos), dtype=np.float32)
         for i, (n, rot, est, txt, *_) in enumerate(self.trechos):
-            d = f"{self.normas[n]['nome']} {self.normas[n]['ementa'] if rot == 'Preâmbulo' else ''} {rot} {est} {txt}"
+            d = f"{self.normas[n].get('b') or self.normas[n]['nome']} {self.normas[n]['ementa'] if rot == 'Preâmbulo' else ''} {rot} {est} {txt}"
             c = Counter(termos(d))
             self.comp[i] = sum(c.values())
             for w, k in c.items():

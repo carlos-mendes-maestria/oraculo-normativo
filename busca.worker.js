@@ -36,7 +36,7 @@ function termos(t) {
 }
 
 function docDe([n, rot, est, txt]) {
-  return `${normas[n].nome} ${rot === "Preâmbulo" ? normas[n].ementa : ""} ${rot} ${est} ${txt}`;
+  return `${normas[n].b || normas[n].nome} ${rot === "Preâmbulo" ? normas[n].ementa : ""} ${rot} ${est} ${txt}`;
 }
 
 function montarBM25() {
