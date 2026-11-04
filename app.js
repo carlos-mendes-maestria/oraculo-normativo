@@ -1,7 +1,7 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const VERSAO = "07e8b116227c";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const VERSAO = "570db4c9d8c0";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
 const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
 
 // Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
@@ -42,7 +42,7 @@ function destacar(texto, termos) {
   });
 }
 
-function situacao(n) { return n.cancelada ? "cancelada" : n.situacao === "revogada" ? "revogada" : "vigente"; }
+function situacao(n) { return n.cancelada ? "cancelada" : n.situacao === "revogada" ? "revogada" : (n.superada || n.sem_efeito) ? "sem efeito" : "vigente"; }
 
 // selo do cartao: nos precedentes vale a situacao do tema, nao a do arquivo do NUGEP que reune centenas de temas
 function seloDe(r) {
@@ -209,7 +209,7 @@ const TRECHOS_ASSUNTO_CONCRETA = 4, TRECHOS_PERGUNTA_CONCRETA = 10;
 const MAX_CONTINUACOES = 4;   // trechos seguintes anexados (terminam em titulo ou cortados); nao contam no limite de 14
 
 function cabecalho(n, rotulo, sitTema) {
-  const sit = sitTema || (n.superada ? "sem efeito, alterou norma revogada" : situacao(n));
+  const sit = sitTema || (n.superada ? "sem efeito, alterou norma revogada" : n.sem_efeito ? "sem efeito: " + n.sem_efeito : situacao(n));
   return `${n.nome} – ${rotulo} (${sit}${n.revogada_por ? " pela " + n.revogada_por : ""}${n.data ? ", " + n.data : ""})`;
 }
 
@@ -331,7 +331,7 @@ function ehPrecedente(r) { return TIPOS_PRECEDENTE.has(r.norma.tipo); }
 function situacaoPrecedente(r) {
   const n = r.norma;
   if (n.tipo === "Precedentes Qualificados") return r.situacaoTema || "não informada no trecho";
-  return n.superada ? "sem efeito, alterou norma revogada" : situacao(n) + (n.revogada_por ? " pela " + n.revogada_por : "");
+  return n.superada ? "sem efeito, alterou norma revogada" : n.sem_efeito ? "sem efeito: " + n.sem_efeito : situacao(n) + (n.revogada_por ? " pela " + n.revogada_por : "");
 }
 
 function identificarPrecedente(r) {

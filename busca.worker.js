@@ -323,7 +323,7 @@ async function buscar({ id, consulta: digitada, contexto, soVigentes, tipoNorma,
   const consulta = corrigir(digitada);
   const filtro = (i) => {
     const m = normas[trechos[i][0]];
-    return (!soVigentes || (m.situacao !== "revogada" && !m.superada && !/^(cancelad|prejudicad)/i.test(sitTema[i]))) && (!tipoNorma || m.tipo === tipoNorma || (tipoNorma === "precedentes-sumulas" && TIPOS_PRECEDENTE.has(m.tipo)));
+    return (!soVigentes || (m.situacao !== "revogada" && !m.superada && !m.sem_efeito && !/^(cancelad|prejudicad)/i.test(sitTema[i]))) && (!tipoNorma || m.tipo === tipoNorma || (tipoNorma === "precedentes-sumulas" && TIPOS_PRECEDENTE.has(m.tipo)));
   };
   const listas = [topo(bm25(consulta), 100, filtro)], pesos = [1];
   let modo = "palavras";
