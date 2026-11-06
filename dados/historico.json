@@ -2,6 +2,21 @@
  {
   "data": "2026-11-06",
   "normas": 1770,
+  "vigentes": 1607,
+  "trechos": 29344,
+  "nota": "",
+  "adicionadas": [],
+  "retiradas": [],
+  "revogadas": [
+   "Provimento da Presidência nº 13/2008",
+   "Resolução nº 34/2016",
+   "Resolução nº 250/2021",
+   "Resolução nº 32/2011"
+  ]
+ },
+ {
+  "data": "2026-11-06",
+  "normas": 1770,
   "vigentes": 1611,
   "trechos": 29344,
   "nota": "",
