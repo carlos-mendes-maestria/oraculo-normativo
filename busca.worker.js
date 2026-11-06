@@ -100,9 +100,9 @@ function rrf(listas, pesos, k = 60) {
 }
 
 // Dicionario de equivalencias (dados/sinonimos.json): "analista judicial" tambem busca "servidor", etc.
-// A pergunta ampliada entra como uma 3a lista, com peso 0,5, so na busca por palavras (testar_busca.py, 28/10).
+// A pergunta ampliada entra como uma 3a lista, so na busca por palavras (testar_busca.py, 28/10); peso 0,5 -> 1 em 06/11/2026 (OK do Carlos).
 let sinonimos = [];
-const PESO_AMPLIADA = 0.5;
+const PESO_AMPLIADA = 1;
 const PESO_CONTEXTO = 2;     // busca da pergunta junto com o tema: costuma ser a lista mais precisa do conjunto
 
 function escaparRx(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
