@@ -270,6 +270,10 @@
     {"se": ["assinar digitalmente", "assinatura digital", "certificado digital"],
      "acrescenta": "assinatura eletronica certificado digital"},
     {"se": ["cotas", "cota racial", "vaga para negros"],
-     "acrescenta": "reserva vagas"}
+     "acrescenta": "reserva vagas"},
+    {"se": ["remedio", "remedios", "negar medicamento", "negar remedio", "fornecer medicamento", "fornecimento de medicamento", "fornecimento de medicamentos", "reserva do possivel", "previsao orcamentaria", "falta de orcamento"],
+     "acrescenta": "fornecimento de remedios medicamentos tratamentos recuperacao da saude direitos fundamentais prescindem de previsao orcamentaria"},
+    {"se": ["estrutura a carreira", "estrutura da carreira", "estruturada a carreira", "como e a carreira", "carreira de analista", "carreira de tecnico", "carreira de oficial", "carreira do servidor", "carreiras"],
+     "acrescenta": "carreiras estrutura e atribuicoes das carreiras quadro de pessoal efetivo cargos de provimento efetivo"}
   ]
 }
