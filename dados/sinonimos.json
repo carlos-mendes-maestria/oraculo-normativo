@@ -1,6 +1,8 @@
 {
   "_sobre": "Dicionario de equivalencias da busca. Se a pergunta contiver um termo de 'se' (sem acento, minusculas), os termos de 'acrescenta' entram na busca. Editavel sem programar: inclua novos grupos seguindo o modelo.",
   "grupos": [
+    {"se": ["processo criminal", "processos criminais", "acao penal", "acoes penais", "custas criminais", "custas em processo criminal", "custas no processo criminal"],
+     "acrescenta": "causas criminais e de execucao penal demais feitos criminais custas finais acoes penais em geral pagas ao final pelo acusado se condenado"},
     {"se": ["analista judicial", "analista judiciario", "analista administrativo", "oficial de justica", "oficial judiciario", "tecnico judiciario", "escrevente", "atendente judiciario", "assessor", "assistente de magistrado", "secretario de vara", "secretaria de vara", "comissionado", "cargo efetivo", "concursado", "funcionario"],
      "acrescenta": "servidor publico efetivo servidores"},
     {"se": ["juiz", "juiza", "juizes", "desembargador", "desembargadora", "magistrada"],
