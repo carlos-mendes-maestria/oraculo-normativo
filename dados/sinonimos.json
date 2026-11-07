@@ -197,6 +197,8 @@
      "acrescenta": "vista autos carga consulta processual"},
     {"se": ["processo sigiloso", "processo em segredo"],
      "acrescenta": "segredo justica sigilo"},
+    {"se": ["acordo com a corregedoria", "acordo disciplinar", "acordo para nao ser punido", "falta leve"],
+     "acrescenta": "termo ajustamento conduta TAC"},
     {"se": ["tirar dinheiro do processo", "sacar dinheiro", "sacar o dinheiro", "receber o dinheiro do processo"],
      "acrescenta": "alvara deposito judicial levantamento"},
     {"se": ["bloquear conta", "bloqueio de conta", "bloquear dinheiro", "penhora online"],

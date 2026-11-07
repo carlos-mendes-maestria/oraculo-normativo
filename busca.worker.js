@@ -296,6 +296,8 @@ function concluirCarga(semModelo) {
   montarRemissoes();
   montarSituacoes();
   montarRotulos();
+  tamanhoNorma = new Array(normas.length).fill(0);
+  for (const t of trechos) tamanhoNorma[t[0]]++;
   console.log(`[busca] indice de palavras montado em ${Math.round(performance.now() - t0)} ms`);
   postMessage({ tipo: "pronto", normas: normas.length, trechos: trechos.length });
   if (!semModelo) carregarModelo();
@@ -370,6 +372,8 @@ async function buscar({ id, consulta: digitada, contexto, soVigentes, tipoNorma,
   for (const r of res.slice(0, 40)) {
     const s = seguinte(r.idx);
     if (s !== null) r.seguinte = { rotulo: trechos[s][1], texto: trechos[s][3] };
+    const v = vizinhos(r.idx);
+    if (v.length) r.vizinhos = v;
   }
   postMessage({ tipo: "resultado", id, modo, res, citados, tabela: tabelaRetribuicao(`${digitada} ${contexto || ""}`, filtro),
                termos: [...new Set(termos(consulta))], corrigida: consulta !== digitada ? consulta : "", equivalentes: ampliada.slice(consulta.length).trim() });
@@ -386,6 +390,25 @@ function seguinte(i) {
   const titulo = RX_TITULO.test(ult) || (RX_TITULO.test(pen) && ult.length < 90 && !/[.;:]$/.test(ult));
   const cortado = /\(parte \d+\)$/.test(trechos[i + 1][1]) && !/[.;:)”"]$/.test(ult);
   return titulo || cortado ? i + 1 : null;
+}
+
+// Norma curta: os artigos seguintes ao trecho encontrado sao candidatos de "vizinhanca". A pagina so os poe no prompt
+// quando a norma domina a busca (autoteste de 07/11/2026: o art. 3º da Lei 8.938/2026 e os arts. 3º e 4º do
+// Prov. CGJ 181/2025 ficaram fora, embora viessem logo depois dos artigos enviados).
+const MAX_TRECHOS_CURTA = 15, VIZINHOS = 3;
+const RX_ASSINATURA = /autenticidade d[oe]s?t?e? documento|assinad[oa] eletronicamente|n[ãa]o substitui o publicado/i;
+let tamanhoNorma = [];
+
+function vizinhos(i) {
+  const [n, , , , tema] = trechos[i];
+  if (tema || tamanhoNorma[n] > MAX_TRECHOS_CURTA) return [];
+  const out = [];
+  for (let j = i + 1; j < trechos.length && trechos[j][0] === n && out.length < VIZINHOS; j++) {
+    const txt = trechos[j][3];
+    if (RX_ASSINATURA.test(txt) && !/\bArt\.?\s*\d/.test(txt)) continue;   // assinatura e certidao de publicacao
+    out.push({ idx: j, rotulo: trechos[j][1], texto: txt });
+  }
+  return out;
 }
 
 // Pergunta sobre valor de cargo em comissao ou funcao de confianca: o valor esta no Quadro II do Anexo VII da LC 230/2017,

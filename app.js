@@ -1,7 +1,7 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const VERSAO = "e67d864034ed";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const VERSAO = "0820c3adf677";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
 const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
 
 // Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
@@ -207,6 +207,48 @@ const TRECHOS_PERGUNTA = 7;
 const RX_CONCRETA = /\b(valor|valores|quanto|quanta|quantos|quantas|prazo|percentual|idade|horas?|n[úu]mero|dias)\b/i;
 const TRECHOS_ASSUNTO_CONCRETA = 4, TRECHOS_PERGUNTA_CONCRETA = 10;
 const MAX_CONTINUACOES = 4;   // trechos seguintes anexados (terminam em titulo ou cortados); nao contam no limite de 14
+// Vizinhanca (autoteste de 07/11/2026): norma curta (ate 15 trechos) com 2+ trechos no prompt leva os artigos seguintes
+// no lugar dos ultimos trechos de outras normas; o total continua 14.
+const MAX_VIZINHOS_NA_IA = 3, MAX_NORMAS_VIZINHANCA = 2, MAX_VIZINHOS_POR_NORMA = 2;
+// O Gemini corta mensagens perto de 32.700 caracteres (P10 do autoteste de 07/11/2026): acima do limite, os trechos
+// mais longos (anexos, quadros) sao encurtados e, se ainda faltar espaco, os trechos citados saem.
+const MAX_CARACTERES_PROMPT = 30000;
+const CORTES_TRECHO = [Infinity, 4000, 3000, 2000, 1500, 1000];
+
+function aplicarVizinhanca(blocoA, blocoB) {
+  const todos = [...blocoA, ...blocoB];
+  const noPedido = new Set(todos.map((r) => r.idx));
+  const novos = (k) => todos.filter((x) => x.norma.arquivo === k).sort((a, b) => a.idx - b.idx)
+    .flatMap((r) => (r.vizinhos || []).map((v) => ({ ...v, norma: r.norma })));
+  // candidatas: normas curtas que ja tem 2+ trechos no prompt (uma norma com 1 trecho so pode ser ruido da busca:
+  // no teste, completar o Prov. Conj. 92/2023 tirou do prompt o Prov. 161/2024, que respondia a pergunta)
+  const cont = new Map();
+  todos.forEach((r) => cont.set(r.norma.arquivo, (cont.get(r.norma.arquivo) || 0) + 1));
+  // entre elas, a mais recente primeiro (o prompt manda usar a vigente e a mais recente): no reajuste de 2026, a Lei 8.938/2026
+  // vem antes da Res. 520/2026, que so aprovou o projeto, e da Res. 95/2018, projeto do reajuste de 2018
+  const dataDe = new Map(todos.map((r) => [r.norma.arquivo, (r.norma.data || "").split("/").reverse().join("")]));
+  const candidatas = [...cont].filter(([, c]) => c >= 2).map(([k]) => k)
+    .sort((a, b) => dataDe.get(b).localeCompare(dataDe.get(a)));
+  const dominantes = [], extras = [];
+  for (const k of candidatas) {
+    if (dominantes.includes(k) || dominantes.length >= MAX_NORMAS_VIZINHANCA || extras.length >= MAX_VIZINHOS_NA_IA) continue;
+    let deste = 0;
+    for (const v of novos(k)) {
+      if (deste >= MAX_VIZINHOS_POR_NORMA || extras.length >= MAX_VIZINHOS_NA_IA || noPedido.has(v.idx)) continue;
+      noPedido.add(v.idx); deste++;
+      extras.push({ idx: v.idx, norma: v.norma, rotulo: v.rotulo, texto: v.texto, vizinho: true });
+    }
+    if (deste) dominantes.push(k);   // norma sem artigo novo a acrescentar nao ocupa a vaga de dominante
+  }
+  if (!extras.length) return;
+  // sai o fim da lista (primeiro do bloco da pergunta), nunca trecho de norma dominante nem o 1º de cada bloco
+  let n = extras.length;
+  for (const bloco of [blocoB, blocoA])
+    for (let i = bloco.length - 1; i >= 1 && n > 0; i--)
+      if (!dominantes.includes(bloco[i].norma.arquivo)) { bloco.splice(i, 1); n--; }
+  extras.splice(extras.length - n, n);   // sem espaco para trocar: os vizinhos que sobraram ficam de fora
+  (blocoB.length ? blocoB : blocoA).push(...extras);
+}
 
 function cabecalho(n, rotulo, sitTema) {
   const sit = sitTema || (n.superada ? "sem efeito, alterou norma revogada" : n.sem_efeito ? "sem efeito: " + n.sem_efeito : situacao(n));
@@ -233,17 +275,21 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote,
                       : escolherParaIA(resAssunto, !temPergunta ? TRECHOS_NA_IA : concreta ? TRECHOS_ASSUNTO_CONCRETA : TRECHOS_ASSUNTO_COM_PERGUNTA);
   const blocoB = temPergunta ? escolherParaIA(resPergunta, lote ? TRECHOS_POR_LOTE - blocoA.length : concreta ? TRECHOS_PERGUNTA_CONCRETA : TRECHOS_PERGUNTA,
                                               new Set([...excluir, ...blocoA.map((r) => r.idx)])) : [];
+  if (!lote) aplicarVizinhanca(blocoA, blocoB);
   const todos = [...blocoA, ...blocoB];
   if (!todos.length) return { texto: "", usados: [] };
   const fonte = (r) => r.linkTema ? `Fonte: ${fonteTema(r.norma)}. Link oficial: ${r.linkTema}\nSuspensão nacional: ${r.suspensao}\n` : "";
   const noPedido = new Set(todos.map((r) => r.idx));
-  let continuacoes = 0;
+  let continuacoes = 0, corte = Infinity;
+  const encurtar = (t) => t.length <= corte ? t
+    : t.slice(0, corte).replace(/\s+\S*$/, "") + " […] (trecho encurtado para caber no limite do prompt; a íntegra está no texto oficial da norma)";
   const continuacao = (r) => {
     if (!r.seguinte || continuacoes >= MAX_CONTINUACOES || noPedido.has(r.idx + 1)) return "";
     continuacoes++;
-    return `\n(continuação: trecho seguinte da mesma norma, ${r.seguinte.rotulo})\n${r.seguinte.texto}`;
+    return `\n(continuação: trecho seguinte da mesma norma, ${r.seguinte.rotulo})\n${encurtar(r.seguinte.texto)}`;
   };
-  const texto = (lista, ini) => lista.map((r, i) => `[${ini + i + 1}] ${cabecalho(r.norma, r.rotulo, r.situacaoTema)}\n${fonte(r)}${r.texto}${continuacao(r)}`).join("\n\n");
+  const vizinho = (r) => r.vizinho ? " – artigo seguinte da mesma norma" : "";
+  const texto = (lista, ini) => lista.map((r, i) => `[${ini + i + 1}] ${cabecalho(r.norma, r.rotulo, r.situacaoTema)}${vizinho(r)}\n${fonte(r)}${encurtar(r.texto)}${continuacao(r)}`).join("\n\n");
   const blocoTabela = tabela && !lote ? [
     "TABELA DE RETRIBUIÇÃO DOS CARGOS EM COMISSÃO E FUNÇÕES DE CONFIANÇA (anexada porque a pergunta trata do valor de cargo ou função):",
     "Primeiro localize o símbolo do cargo ou da função (CC/0x ou FC/0x) nos quadros de cargos; depois, o valor desse símbolo no Quadro II do Anexo VII da LC nº 230/2017.",
@@ -259,8 +305,8 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote,
     if (!ordemCit.has(t)) ordemCit.set(t, []);
     ordemCit.get(t).push(i + 1);
   }));
-  const blocosCit = [...ordemCit.entries()].slice(0, MAX_CITADOS_NA_IA).map(([t, de], j) =>
-    `[C${j + 1}] ${cabecalho(citados[t].norma, citados[t].rotulo)} – citado em [${de.join("], [")}]\n${citados[t].texto}`);
+  const montarCitados = (max) => [...ordemCit.entries()].slice(0, max).map(([t, de], j) =>
+    `[C${j + 1}] ${cabecalho(citados[t].norma, citados[t].rotulo)} – citado em [${de.join("], [")}]\n${encurtar(citados[t].texto)}`);
   const identificacao = pergunta ? `Tema: ${assunto} | Pergunta: ${pergunta}` : `Tema: ${assunto} | Consulta geral, sem pergunta específica`;
   const regras = [
     "- Use SOMENTE os trechos abaixo e cite a norma e o artigo de cada informação, com o nome exato da norma como aparece no trecho, no formato (Resolução nº X/AAAA, art. Y) ou (Nota Técnica CIJEPI nº X/AAAA, trecho Y).",
@@ -270,7 +316,10 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote,
   ];
   const parteFora = pergunta ? "PARTE 3 – SOMENTE se a Parte 2 não responder por completo:"
                              : "PARTE 2 – SOMENTE se algum aspecto importante do tema não estiver coberto pelos trechos:";
-  const texto_ = [
+  const gerar = (maxCit) => {
+  continuacoes = 0;
+  const blocosCit = montarCitados(maxCit);
+  return [
     ...(lote ? avisoContinuacao(lote) : []),
     "Você é um assistente que tira dúvidas sobre as normas internas do Poder Judiciário do Estado do Piauí.",
     "Responda em português, em linguagem clara, para um servidor sem formação jurídica, nesta ordem.",
@@ -316,6 +365,14 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote,
     ] : []),
     "Lembrete: o texto oficial publicado prevalece.",
   ].join("\n");
+  };
+  let texto_ = "";
+  for (const c of CORTES_TRECHO) {
+    corte = c;
+    texto_ = gerar(MAX_CITADOS_NA_IA);
+    if (texto_.length <= MAX_CARACTERES_PROMPT) break;
+  }
+  for (let m = MAX_CITADOS_NA_IA - 1; texto_.length > MAX_CARACTERES_PROMPT && m >= 0; m--) texto_ = gerar(m);
   return { texto: texto_, usados: todos };
 }
 
