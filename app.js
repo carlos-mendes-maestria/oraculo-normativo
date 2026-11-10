@@ -1,7 +1,7 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const VERSAO = "27d7f47ef791";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const VERSAO = "77dae7261896";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
 const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
 
 // Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
@@ -266,12 +266,17 @@ function avisoContinuacao(lote) {
   ];
 }
 
-function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote, tabela) {
+const NORMA_PEDIDA_NA_IA = 30;   // trechos da norma pedida pelo numero (o limite de caracteres encurta os longos)
+function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote, tabela, pedida) {
   const temPergunta = pergunta && resPergunta;
   const concreta = temPergunta && RX_CONCRETA.test(pergunta);
   const excluir = lote ? lote.excluir : new Set();
   const inicio = lote ? lote.primeiro - 1 : 0;
-  const blocoA = lote ? escolherParaIA(resAssunto, temPergunta ? TRECHOS_POR_LOTE / 2 : TRECHOS_POR_LOTE, excluir)
+  // consulta geral sobre uma norma citada pelo numero: o prompt leva os trechos dela, na ordem dos artigos
+  // (caso real do "Não achei" de 10/11/2026; a Res. 571/2026 ia com 3 trechos e 7 de outras normas)
+  const geralDaNorma = !temPergunta && !lote && pedida && pedida.length;
+  const blocoA = geralDaNorma ? pedida.slice(0, NORMA_PEDIDA_NA_IA).sort((a, b) => a.idx - b.idx)
+                : lote ? escolherParaIA(resAssunto, temPergunta ? TRECHOS_POR_LOTE / 2 : TRECHOS_POR_LOTE, excluir)
                       : escolherParaIA(resAssunto, !temPergunta ? TRECHOS_NA_IA : concreta ? TRECHOS_ASSUNTO_CONCRETA : TRECHOS_ASSUNTO_COM_PERGUNTA);
   const blocoB = temPergunta ? escolherParaIA(resPergunta, lote ? TRECHOS_POR_LOTE - blocoA.length : concreta ? TRECHOS_PERGUNTA_CONCRETA : TRECHOS_PERGUNTA,
                                               new Set([...excluir, ...blocoA.map((r) => r.idx)])) : [];
@@ -523,7 +528,7 @@ async function perguntarIA(destino, precedentes = false, estender = false) {
   const resA = rebaixar(enxuto ? pertinentes(ultimo.res) : ultimo.res);
   resP = resP && rebaixar(enxuto ? pertinentes(resP) : resP);
   const { texto: pedido, usados } = precedentes ? montarPedidoPrecedentes(ultimo.consulta, resA, pergunta, resP, lote)
-                                                : montarPedido(ultimo.consulta, resA, pergunta, resP, citados, lote, tabela);
+                                                : montarPedido(ultimo.consulta, resA, pergunta, resP, citados, lote, tabela, ultimo.pedida);
   if (!usados.length) {
     $("ia-aviso").textContent = "Não há mais trechos nesta busca: todos os encontrados já foram enviados.";
     $("ia-aviso").hidden = false;
@@ -581,6 +586,7 @@ worker.onmessage = (e) => {
     lista.innerHTML = "";
     ultimo.res = m.res;
     ultimo.citados = m.citados;
+    ultimo.pedida = m.pedida || [];
     ultimo.tabela = m.tabela;
     ultimoTermos = m.termos;
     m.res.slice(0, NA_TELA).forEach((r) => lista.appendChild(cartao(r, m.termos)));

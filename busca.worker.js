@@ -219,7 +219,7 @@ function grupoTipo(t) {
 function montarRemissoes() {
   normas.forEach((n, i) => {
     porArquivo.set(n.arquivo, i);
-    const num = parseInt(n.numero, 10);
+    const num = parseInt(String(n.numero).replace(/\./g, ""), 10);   // "8.938" (antes virava 8 e a lei nao era achada)
     if (!num) return;
     const k = `${n.tipo}|${num}|${n.ano}`;
     if (!porChave.has(k)) porChave.set(k, []);
@@ -303,6 +303,23 @@ function concluirCarga(semModelo) {
   if (!semModelo) carregarModelo();
 }
 
+// "Resolução nº 571/2026", "Lei 8.938", "LC 230/2017": a norma pedida pelo numero (caso real do "Não achei" de
+// 10/11/2026: na consulta geral, o prompt levou 3 trechos da Res. 571/2026 e 7 "Art. 2º" de outras resolucoes).
+// Sem o ano, vale a mais recente com aquele numero. A pagina usa a lista na consulta geral (sem pergunta).
+const RX_NORMA_PEDIDA = /\b(resolucao(?:\s+conjunta)?|res\.?|provimento(?:\s+conjunto)?|prov\.?|lei\s+complementar|lc|lei)\s*(?:estadual\s*|tjpi\s*|cgj\s*)*(?:n[º°o.]*\s*)?(\d{1,2}\.\d{3}|\d{1,4})(?:\s*\/\s*(\d{2,4})|,?\s*de\s+\d{1,2}[º°o]?\s+de\s+[a-zç]+\s+de\s+(\d{4})|\s+de\s+(\d{4}))?/;
+function normaPedida(consulta) {
+  const m = RX_NORMA_PEDIDA.exec(dobrar(consulta));
+  if (!m) return undefined;
+  const tipo = m[1].replace(/^res\.?$/, "resolucao").replace(/^prov\.?$/, "provimento").replace(/^lc$/, "lei complementar");
+  const ano = m[3] || m[4] || m[5];
+  if (ano) return normaCitada(tipo, m[2], ano, undefined);
+  const num = parseInt(m[2].replace(".", ""), 10), grupo = grupoTipo(tipo);
+  const cands = [...porChave].filter(([k]) => k.startsWith(`${grupo}|${num}|`)).flatMap(([, v]) => v)
+    .filter((i) => /conjunt/.test(tipo) === /conjunt/i.test(normas[i].arquivo))
+    .sort((a, b) => (normas[b].situacao !== "revogada") - (normas[a].situacao !== "revogada") || parseInt(normas[b].ano, 10) - parseInt(normas[a].ano, 10));
+  return cands[0];
+}
+
 // "Tema 1376 STJ", "IAC 5": o tema pedido pelo numero vem primeiro, mesmo cancelado, para o usuario ver a situacao dele.
 const RX_TEMA = /\b(tema|iac|sirdr|puil|relevancia)\s*(?:n[º°o.]*\s*)?(\d[\d.]*)(?:\s*(?:\/|d[oe])?\s*(stf|stj))?/gi;
 let porRotulo = new Map();
@@ -375,7 +392,16 @@ async function buscar({ id, consulta: digitada, contexto, soVigentes, tipoNorma,
     const v = vizinhos(r.idx);
     if (v.length) r.vizinhos = v;
   }
-  postMessage({ tipo: "resultado", id, modo, res, citados, tabela: tabelaRetribuicao(`${digitada} ${contexto || ""}`, filtro),
+  // norma pedida pelo numero: os trechos dela na ordem do texto (preambulo e primeiros artigos dizem o objeto da norma;
+  // a ordem de relevancia, com a consulta so com o nome, era arbitraria nas normas longas)
+  const np = normaPedida(`${digitada} ${contexto || ""}`);
+  let pedida = [];
+  if (np !== undefined) {
+    const deNorma = [];
+    for (let i = 0; i < trechos.length; i++) if (trechos[i][0] === np) deNorma.push(i);
+    pedida = deNorma.map((i) => { const [, rotulo, estrutura, texto] = trechos[i]; return { idx: i, norma: normas[np], rotulo, estrutura, texto, situacaoTema: "", pertinente: true, fraco: false }; });
+  }
+  postMessage({ tipo: "resultado", id, modo, res, citados, pedida, tabela: tabelaRetribuicao(`${digitada} ${contexto || ""}`, filtro),
                termos: [...new Set(termos(consulta))], corrigida: consulta !== digitada ? consulta : "", equivalentes: ampliada.slice(consulta.length).trim() });
 }
 
