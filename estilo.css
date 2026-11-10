@@ -169,6 +169,7 @@ button:disabled { background: var(--borda); color: var(--suave); box-shadow: non
 .selo.revogada.tema { color: var(--revogada); background: var(--revogada-fundo); box-shadow: none; }
 .selo.beta { color: var(--primaria); background: var(--primaria-fundo); font-family: system-ui, sans-serif; vertical-align: middle; }
 .falha-area { text-align: center; margin: 16px 0 4px; }
+.falha-pergunta { display: block; font-weight: 600; margin-bottom: 8px; }
 button.falha-botao { background: #c62828; color: #fff; font-size: 1.12rem; font-weight: 700; padding: 12px 24px; min-height: 50px; max-width: 100%; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
 button.falha-botao:hover:not(:disabled) { background: #a51d1d; }
 .falha-dialogo { max-width: 460px; width: calc(100% - 32px); border: 1px solid var(--borda); border-radius: 8px; background: var(--cartao-2); color: inherit; padding: 16px; }
