@@ -1,7 +1,7 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const VERSAO = "0bcd01842cfb";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const VERSAO = "5671481fbce2";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
 const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
 
 // Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
@@ -200,6 +200,9 @@ function escolherParaIA(res, limite, excluir = new Set()) {
 const MAX_CITADOS_NA_IA = 8;
 // sem trecho sobre um ponto nao se pode concluir que a norma nao trata dele: a busca so traz parte do acervo
 const REGRA_AUSENCIA = "Se os trechos não tratarem de algum ponto, escreva \"os trechos encontrados não tratam disso\" e recomende nova busca ou consulta ao texto oficial. Nunca afirme que a norma não prevê, não autoriza ou proíbe algo com base na ausência de trechos.";
+// linha final da resposta da IA: identifica a origem da consulta
+const LINHA_ORIGEM = "Consulta elaborada a partir de prompt gerado pelo Oráculo Normativo TJPI (https://carlos-mendes-maestria.github.io/oraculo-normativo/). O texto oficial das normas e dos precedentes prevalece.";
+const REGRA_ORIGEM = `Termine a resposta, depois de todas as partes, com esta linha, copiada sem alterações: "${LINHA_ORIGEM}"`;
 let equivalentes = "";   // termos das normas para a linguagem da pergunta (dicionario de equivalencias)
 const TRECHOS_ASSUNTO_COM_PERGUNTA = 7;   // com pergunta: 7 do assunto + ate 7 da pergunta
 const TRECHOS_PERGUNTA = 7;
@@ -355,6 +358,8 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote,
     "- Se algum trecho terminar cortado ou terminar num título (Seção, Subseção, Capítulo) que anuncia o assunto da pergunta, avise que a continuação não foi enviada e sugira busca com as palavras desse título e o número da norma.",
     "- Sugira até 3 novas tentativas no formato Tema: ... | Pergunta: ..., com uma linha explicando por que cada uma pode encontrar a norma. Não invente número de norma ou artigo.",
     "",
+    `ENCERRAMENTO – ${REGRA_ORIGEM}`,
+    "",
     `TEMA PESQUISADO: ${assunto}`,
     pergunta ? `PERGUNTA DO USUÁRIO: ${pergunta}` : "PERGUNTA DO USUÁRIO: nenhuma (consulta geral sobre o tema)",
     "",
@@ -463,6 +468,7 @@ function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta, lot
     "6. Se julgar útil trazer informação que não está nos trechos (por exemplo, precedentes ou julgados que não aparecem nos trechos), faça isso SOMENTE em seção separada, intitulada \"Informações complementares (fora da base do Oráculo)\", com a advertência: \"Estas informações não constam dos trechos fornecidos e devem ser conferidas em fonte oficial.\"",
     "7. NOVA BUSCA SUGERIDA (somente se os trechos não responderam por completo): o Oráculo encontra trechos por semelhança de sentido e de palavras e funciona melhor com os termos técnicos usados nos precedentes (ex.: o instituto jurídico, \"recurso repetitivo\", \"repercussão geral\", o número do tema), com tema curto (2 a 4 palavras) e pergunta objetiva. Use os trechos como pista (termos, temas e dispositivos legais citados) e sugira até 3 novas tentativas no formato Tema: ... | Pergunta: ..., com uma linha explicando por que cada uma pode encontrar o precedente. Não invente número de tema, súmula ou processo.",
     "8. Encerre com: \"O texto oficial do precedente, disponível no link indicado, prevalece sobre este resumo.\"",
+    `9. ${REGRA_ORIGEM}`,
   ].join("\n");
   return { texto, usados: lista };
 }
