@@ -1,7 +1,7 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const VERSAO = "558ab9c1c466";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const VERSAO = "fc837f9bcfa9";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
 const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
 
 // Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
@@ -71,45 +71,55 @@ function atualizarEstado(aviso) {
   $("estado").textContent = aviso || "";
 }
 
-// Fluxo guiado: tudo deriva do que foi adicionado e do que esta escrito nos campos agora.
-// Editar o tema ou a pergunta depois de adicionar bloqueia os botoes ate adicionar de novo,
-// para o prompt nunca sair com conteudo diferente do que esta na tela.
-let temaAdd = null, perguntaAdd = null, consultaGeral = false;
+// Fluxo: uma caixa so ("Qual e a sua duvida?"). O texto escrito e a busca e tambem a pergunta que vai para a IA;
+// texto curto, sem interrogacao, vira consulta geral sobre o assunto. Buscar pela frase inteira manteve o acerto
+// do testar_busca.py (top-5 90%); buscar so por palavras-chave da frase caiu para 81% (teste de 14/11/2026).
+// Se o texto mudar depois da busca, o clique nos botoes de IA refaz a busca com o que esta escrito agora.
+let temaAdd = null, perguntaAdd = null, consultaGeral = false, textoAdd = null, geralAutomatica = false;
+
+function ehCurto(texto) {
+  return !texto.includes("?") && texto.split(/\s+/).filter(Boolean).length <= 4;
+}
+
+// geral = true: botao "Explicar o tema todo"; false: "Responder minha pergunta" (que vira geral se o texto for curto)
+function interpretar(texto, geral) {
+  textoAdd = texto;
+  geralAutomatica = !geral && ehCurto(texto);
+  consultaGeral = geral || geralAutomatica;
+  temaAdd = texto;
+  perguntaAdd = consultaGeral ? null : texto;
+}
 
 function atualizarFluxo() {
-  const tema = $("q").value.trim();
-  const temaOk = !!temaAdd && dobrar(tema) === dobrar(temaAdd);
-  const escrita = $("pergunta").value.trim();
-  const perguntaOk = temaOk && (consultaGeral ? !escrita : !!perguntaAdd && dobrar(escrita) === dobrar(perguntaAdd));
+  const escrito = $("q").value.trim();
+  const temaOk = !!textoAdd;
   const achou = !!(ultimo && ultimo.res.length);
-  // depois da primeira busca os botoes ficam liberados: ao clicar, o prompt sai do que esta escrito agora (sincronizarCampos)
-  const mudou = !!temaAdd && !perguntaOk && !!tema && (!!escrita || consultaGeral || !!perguntaAdd);
-  const pronto = (perguntaOk || mudou) && achou;
+  const mudou = temaOk && !!escrito && dobrar(escrito) !== dobrar(textoAdd);
+  const pronto = temaOk && achou;
   const marcar = (id, estado) => {
     const c = $(id).classList;
     c.toggle("ativa", estado === "ativa"); c.toggle("feita", estado === "feita"); c.toggle("bloqueada", estado === "bloqueada");
   };
-  marcar("etapa1", temaOk ? "feita" : "ativa");
-  marcar("etapa2", !temaOk ? "bloqueada" : perguntaOk ? "feita" : "ativa");
+  marcar("etapa1", temaOk && !mudou ? "feita" : "ativa");
   marcar("ia", pronto ? "ativa" : "bloqueada");
-  $("pergunta").disabled = !temaOk;
-  $("ir-p").disabled = !temaOk;
-  $("ir-geral").disabled = !temaOk;
-  ["ia-chatgpt", "ia-gemini", "ia-copiar", "ia-precedentes", "estender"].forEach((id) => { $(id).disabled = !pronto; });
+  ["ia-chatgpt", "ia-precedentes", "estender", "barra-chatgpt"].forEach((id) => { $(id).disabled = !pronto; });
   $("ia-precedentes").hidden = !(pronto && ultimo.res.slice(0, NA_TELA).some(ehPrecedente));
   $("estender").hidden = !(pronto && envio);
   $("passo2").hidden = !pronto;
   $("resultados").hidden = !pronto;
   $("falha-area").hidden = !pronto || !FORMULARIO.url;
-  $("exemplos").hidden = !!temaAdd;
+  $("exemplos").hidden = !!textoAdd;
   if (!pronto) { $("ia-aviso").hidden = true; $("ia-texto").hidden = true; }
   $("ia-resumo").innerHTML = pronto && mudou
-    ? "Os campos mudaram: ao clicar em um botão, a busca é refeita com o que está escrito agora."
+    ? "A dúvida mudou: ao clicar em um botão, a busca é refeita com o que está escrito agora."
+    : pronto && consultaGeral
+    ? `Pronto. <strong>Explicação geral</strong> sobre “${escapar(temaAdd)}”.` +
+      (geralAutomatica ? " Como você escreveu só o assunto, a IA fará uma explicação geral; para uma resposta específica, escreva a pergunta completa." : "")
     : pronto
-    ? `Tudo pronto. Tema: <strong>“${escapar(temaAdd)}”</strong>. ` +
-      (consultaGeral ? "<strong>Consulta geral</strong>, sem pergunta específica." : `Pergunta: <strong>“${escapar(perguntaAdd)}”</strong>.`)
-    : !temaOk ? "Os botões serão liberados depois do tema e da pergunta ou consulta geral."
-    : "Falta adicionar a pergunta ou escolher a consulta geral para liberar os botões.";
+    ? `Pronto. Pergunta: <strong>“${escapar(perguntaAdd)}”</strong>.`
+    : temaOk ? "Buscando os trechos…"
+    : "O botão será liberado depois da busca.";
+  barraIA();
 }
 
 // estatistica de uso: so o nome do evento, nunca o texto da busca; bloqueador de anuncios nao quebra nada
@@ -117,30 +127,17 @@ function contarEvento(nome) {
   if (window.goatcounter && window.goatcounter.count) window.goatcounter.count({ path: nome, title: nome, event: true });
 }
 
-function adicionarTema(t) {
+let contarExibidos = false;   // "trechos-exibidos": uma vez por busca feita pelo usuario
+function enviarDuvida(geral) {
+  const t = $("q").value.trim();
   if (!t) { $("q").focus(); return; }
   contarEvento($("tipo").value === "precedentes-sumulas" ? "busca-somente-precedentes" : "busca-normas");
-  if (!temaAdd || dobrar(t) !== dobrar(temaAdd)) {   // tema novo, pergunta nova
-    perguntaAdd = null; consultaGeral = false; $("pergunta").value = "";
-  }
-  temaAdd = t;
-  buscar(t);
+  interpretar(t, geral);
+  contarEvento(geral ? "busca-geral" : geralAutomatica ? "busca-geral-automatica" : "busca-pergunta");
+  contarExibidos = true;
+  buscar(temaAdd);
   atualizarFluxo();
-  if (!perguntaAdd && !consultaGeral) $("pergunta").focus();
-}
-
-function adicionarPergunta() {
-  const p = $("pergunta").value.trim();
-  if (!p) { $("pergunta").focus(); return; }
-  perguntaAdd = p; consultaGeral = false;
-  atualizarFluxo();
-  $("ia").scrollIntoView({ block: "nearest" });
-}
-
-function fazerConsultaGeral() {
-  perguntaAdd = null; consultaGeral = true; $("pergunta").value = "";
-  atualizarFluxo();
-  $("ia").scrollIntoView({ block: "nearest" });
+  $("q").blur();   // fecha o teclado do celular para os resultados aparecerem
 }
 
 function fonteTema(n) { return `${n.fonte}, coletado em ${n.coletado}`; }
@@ -315,7 +312,8 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote,
   }));
   const montarCitados = (max) => [...ordemCit.entries()].slice(0, max).map(([t, de], j) =>
     `[C${j + 1}] ${cabecalho(citados[t].norma, citados[t].rotulo)} – citado em [${de.join("], [")}]\n${encurtar(citados[t].texto)}`);
-  const identificacao = pergunta ? `Tema: ${assunto} | Pergunta: ${pergunta}` : `Tema: ${assunto} | Consulta geral, sem pergunta específica`;
+  const identificacao = pergunta && dobrar(pergunta) === dobrar(assunto) ? `Pergunta: ${pergunta}`
+    : pergunta ? `Tema: ${assunto} | Pergunta: ${pergunta}` : `Tema: ${assunto} | Consulta geral, sem pergunta específica`;
   const regras = [
     "- Use SOMENTE os trechos abaixo e cite a norma e o artigo de cada informação, com o nome exato da norma como aparece no trecho, no formato (Resolução nº X/AAAA, art. Y) ou (Nota Técnica CIJEPI nº X/AAAA, trecho Y).",
     "- Regras gerais dos servidores ou dos magistrados (ex.: Estatuto dos Servidores, Constituição Estadual) se aplicam a todos os cargos da categoria, mesmo que o trecho não cite o cargo perguntado.",
@@ -354,10 +352,10 @@ function montarPedido(assunto, resAssunto, pergunta, resPergunta, citados, lote,
     "- Nunca misture esse conteúdo nas partes anteriores. Se elas já bastarem, não escreva esta seção.",
     "",
     `${pergunta ? "PARTE 4" : "PARTE 3"} – NOVA BUSCA SUGERIDA (somente se as partes anteriores não responderam por completo).`,
-    "- O Oráculo encontra trechos por semelhança de sentido e de palavras, usando os termos das normas. Funciona melhor com termos técnicos usados nas normas (ex.: teletrabalho em vez de home office, retribuição em vez de gratificação), com tema curto (2 a 4 palavras) e pergunta objetiva.",
+    "- O Oráculo encontra trechos por semelhança de sentido e de palavras, usando os termos das normas. Funciona melhor com termos técnicos usados nas normas (ex.: teletrabalho em vez de home office, retribuição em vez de gratificação), com pergunta objetiva que use esses termos.",
     "- Use os trechos recebidos como pista: aproveite os termos que as normas usam e as normas ou anexos que elas citam ou alteram, e indique, quando houver, qual norma citada nos trechos parece conter a resposta.",
     "- Se algum trecho terminar cortado ou terminar num título (Seção, Subseção, Capítulo) que anuncia o assunto da pergunta, avise que a continuação não foi enviada e sugira busca com as palavras desse título e o número da norma.",
-    "- Sugira até 3 novas tentativas no formato Tema: ... | Pergunta: ..., com uma linha explicando por que cada uma pode encontrar a norma. Não invente número de norma ou artigo.",
+    "- Sugira até 3 novas tentativas no formato Dúvida: ... (frase pronta para colar na caixa do Oráculo; para explicação geral, só o assunto em 2 a 4 palavras), com uma linha explicando por que cada uma pode encontrar a norma. Não invente número de norma ou artigo.",
     "",
     `TEMA PESQUISADO: ${assunto}`,
     pergunta ? `PERGUNTA DO USUÁRIO: ${pergunta}` : "PERGUNTA DO USUÁRIO: nenhuma (consulta geral sobre o tema)",
@@ -466,7 +464,7 @@ function montarPedidoPrecedentes(assunto, resAssunto, pergunta, resPergunta, lot
     "4. Depois das fichas, escreva \"Aplicação à pergunta\": explique em linguagem clara como a(s) tese(s) responde(m) à pergunta e aponte elementos que poderiam afastar a aplicação (distinção), se o próprio trecho os indicar.",
     `5. Se nenhum trecho contiver precedente ou súmula pertinente, diga isso claramente. Não invente número, data, tese ou órgão julgador. ${REGRA_AUSENCIA}`,
     "6. Se julgar útil trazer informação que não está nos trechos (por exemplo, precedentes ou julgados que não aparecem nos trechos), faça isso SOMENTE em seção separada, intitulada \"Informações complementares (fora da base do Oráculo)\", com a advertência: \"Estas informações não constam dos trechos fornecidos e devem ser conferidas em fonte oficial.\"",
-    "7. NOVA BUSCA SUGERIDA (somente se os trechos não responderam por completo): o Oráculo encontra trechos por semelhança de sentido e de palavras e funciona melhor com os termos técnicos usados nos precedentes (ex.: o instituto jurídico, \"recurso repetitivo\", \"repercussão geral\", o número do tema), com tema curto (2 a 4 palavras) e pergunta objetiva. Use os trechos como pista (termos, temas e dispositivos legais citados) e sugira até 3 novas tentativas no formato Tema: ... | Pergunta: ..., com uma linha explicando por que cada uma pode encontrar o precedente. Não invente número de tema, súmula ou processo.",
+    "7. NOVA BUSCA SUGERIDA (somente se os trechos não responderam por completo): o Oráculo encontra trechos por semelhança de sentido e de palavras e funciona melhor com os termos técnicos usados nos precedentes (ex.: o instituto jurídico, \"recurso repetitivo\", \"repercussão geral\", o número do tema), com pergunta objetiva que use esses termos. Use os trechos como pista (termos, temas e dispositivos legais citados) e sugira até 3 novas tentativas no formato Dúvida: ... (frase pronta para colar na caixa do Oráculo; para explicação geral, só o assunto em 2 a 4 palavras), com uma linha explicando por que cada uma pode encontrar o precedente. Não invente número de tema, súmula ou processo.",
     "8. Encerre com: \"O texto oficial do precedente, disponível no link indicado, prevalece sobre este resumo.\"",
   ].join("\n");
   return { texto, usados: lista };
@@ -494,15 +492,14 @@ async function copiar(texto) {
 
 let fimDaBusca = null;   // resolvida quando chega o resultado da busca da tela
 
-// O prompt sempre sai do que esta escrito nos campos agora, mesmo sem clicar em "Adicionar" de novo.
+// O prompt sempre sai do que esta escrito na caixa agora, mesmo sem buscar de novo.
 async function sincronizarCampos() {
-  const tema = $("q").value.trim(), pergunta = $("pergunta").value.trim();
-  if (tema && dobrar(tema) !== dobrar(temaAdd || "")) {
-    temaAdd = tema;
-    await new Promise((ok) => { fimDaBusca = ok; buscar(tema); });
-  }
-  if (dobrar(pergunta) !== dobrar(perguntaAdd || "")) {
-    perguntaAdd = pergunta || null; consultaGeral = !pergunta; envio = null;
+  const t = $("q").value.trim();
+  if (t && dobrar(t) !== dobrar(textoAdd || "")) {
+    const temaAntes = temaAdd;
+    interpretar(t, consultaGeral && !geralAutomatica);
+    envio = null;
+    if (dobrar(temaAdd) !== dobrar(temaAntes || "")) await new Promise((ok) => { fimDaBusca = ok; buscar(temaAdd); });
   }
   atualizarFluxo();
 }
@@ -511,7 +508,7 @@ async function perguntarIA(destino, precedentes = false, estender = false) {
   await sincronizarCampos();
   if (!ultimo) return;
   if (!ultimo.res.length) {
-    $("ia-aviso").textContent = "Nada encontrado para este tema. Tente outras palavras.";
+    $("ia-aviso").textContent = "Nada encontrado para esta dúvida. Tente outras palavras.";
     $("ia-aviso").hidden = false;
     return;
   }
@@ -543,16 +540,39 @@ async function perguntarIA(destino, precedentes = false, estender = false) {
   envio = { precedentes, lote: lote ? lote.numero : 1, enviados: new Set([...(lote ? lote.excluir : []), ...usados.map((r) => r.idx)]) };
   if (lote) mostrarLote(usados);
   atualizarFluxo();
-  const ok = await copiar(pedido);
-  const msg = ok ? estender ? `✓ Lote ${envio.lote} copiado, com ${usados.length} trechos novos, listados no fim dos resultados. Atenção: eles são menos semelhantes à pergunta; confira a pertinência. Cada prompt leva até 14 trechos porque, com mais texto, as IAs tendem a perder precisão e as versões gratuitas podem recusar mensagens longas. Cole na mesma conversa ou em outra.` : (destino ? "✓ Prompt copiado. Na aba que abriu, cole na conversa (Ctrl+V, ou toque longo › Colar) e envie."
-                            : `✓ Prompt${precedentes ? " de precedentes" : ""} copiado. Cole no assistente de IA que preferir e envie.`)
-                 : "O navegador não deixou copiar sozinho. O prompt está na caixa abaixo, já selecionado: copie (Ctrl+C, ou toque longo › Copiar) e cole na IA.";
-  $("ia-aviso").textContent = msg;
-  $("ia-aviso").hidden = false;
-  const caixa = $("ia-texto");
-  caixa.hidden = ok;
-  if (!ok) { caixa.value = pedido; caixa.focus(); caixa.select(); }
-  if (destino) window.open(destino, "_blank", "noopener");
+  abrirJanela(pedido, precedentes, estender
+    ? `Lote ${envio.lote}: ${usados.length} trechos novos, listados no fim dos resultados. Eles são menos semelhantes à pergunta; confira a pertinência. Pode colar na mesma conversa da IA ou em outra.`
+    : "");
+}
+
+// Janela "Leve sua duvida a IA": o usuario ve o texto, copia com um toque (com confirmacao) e so entao abre a IA.
+// Copia e abertura da aba acontecem cada uma num clique direto, o que evita bloqueio do navegador (iPhone inclusive).
+function abrirJanela(pedido, precedentes, nota) {
+  $("j-titulo").textContent = precedentes ? "Leve os precedentes à IA" : "Leve sua dúvida à IA";
+  $("j-nota").textContent = nota; $("j-nota").hidden = !nota;
+  $("j-texto").value = pedido; $("j-texto").scrollTop = 0;
+  $("j-copiar").textContent = "Copiar texto"; $("j-copiar").classList.remove("copiado");
+  $("j-copiado").hidden = true;
+  $("j-chatgpt").disabled = $("j-gemini").disabled = true;
+  $("ia-aviso").hidden = true; $("ia-texto").hidden = true;
+  $("janela-ia").showModal();
+  $("j-copiar").focus();
+}
+
+async function copiarDaJanela() {
+  const caixa = $("j-texto");
+  let ok = false;
+  try { await navigator.clipboard.writeText(caixa.value); ok = true; }
+  catch { caixa.focus(); caixa.select(); caixa.setSelectionRange(0, caixa.value.length); ok = document.execCommand("copy"); }
+  contarEvento(ok ? "copiar-prompt" : "copiar-prompt-falhou");
+  $("j-copiado").hidden = false;
+  if (ok) {
+    $("j-copiar").textContent = "Copiado ✓"; $("j-copiar").classList.add("copiado");
+    $("j-copiado").textContent = "✓ Texto copiado. Agora toque em Abrir ChatGPT ou Abrir Gemini.";
+  } else {
+    $("j-copiado").textContent = "O navegador não deixou copiar sozinho. Toque e segure no texto acima, escolha Selecionar tudo e depois Copiar. Em seguida, abra a IA.";
+  }
+  $("j-chatgpt").disabled = $("j-gemini").disabled = false;
 }
 
 // trechos do lote estendido que ainda nao estavam na tela
@@ -571,14 +591,18 @@ worker.onmessage = (e) => {
   const m = e.data;
   if (m.tipo === "pronto") {
     baseOk = true;
-    $("q").disabled = false; $("ir").disabled = false; $("q").focus();
+    $("q").disabled = false; $("ir").disabled = false; $("ir-geral").disabled = false;
     if (semModelo) painel(null);
-    else painel("Aguarde: preparando a busca inteligente…", 0,
-                "Só na primeira visita (cerca de 120 MB). Enquanto isso, a busca por palavras já funciona; os resultados se atualizam sozinhos ao terminar.");
+    else painel("A busca já funciona. Aprimorando a busca inteligente…", 0,
+                "Só na primeira visita (cerca de 120 MB). Pode buscar à vontade: os resultados se atualizam sozinhos ao terminar.");
+    $("ligar-modelo").hidden = semModelo !== "adiado";
+    const vinda = new URLSearchParams(location.search).get("q");   // duvida escrita na pagina inicial
+    if (vinda && !textoAdd) { $("q").value = vinda.slice(0, 500); contarEvento("busca-pagina-inicial"); enviarDuvida(false); }
+    else if (!matchMedia("(pointer: coarse)").matches) $("q").focus();   // no celular, nao abre o teclado sozinho
     document.querySelectorAll("#exemplos button").forEach((b) => { b.disabled = false; });
     atualizarEstado();
   } else if (m.tipo === "modelo") {
-    if (m.estado === "baixando") painel("Aguarde: preparando a busca inteligente…", m.pct);
+    if (m.estado === "baixando") painel("A busca já funciona. Aprimorando a busca inteligente…", m.pct);
     else if (m.estado === "pronto") { modeloOk = true; modeloMsg = ""; painel(null); }
     else { modeloMsg = "Busca inteligente indisponível neste aparelho; seguimos por palavras."; painel(null); }
     if (m.estado !== "baixando") atualizarEstado();
@@ -597,8 +621,11 @@ worker.onmessage = (e) => {
     m.res.slice(0, NA_TELA).forEach((r) => lista.appendChild(cartao(r, m.termos)));
     $("contagem").textContent = m.res.length ? `${Math.min(m.res.length, NA_TELA)} mais relevantes` : "";
     if (fimDaBusca) { fimDaBusca(); fimDaBusca = null; }
-    atualizarEstado(m.res.length ? (m.corrigida ? `Busca feita por: “${m.corrigida}”.` : "") : "Nada encontrado para este tema. Tente outras palavras ou desmarque “Só normas vigentes”.");
+    const primeiraVez = contarExibidos && m.res.length;
+    if (contarExibidos) { contarEvento(m.res.length ? "trechos-exibidos" : "nada-encontrado"); contarExibidos = false; }
+    atualizarEstado(m.res.length ? (m.corrigida ? `Busca feita por: “${m.corrigida}”.` : "") : "Nada encontrado para esta dúvida. Tente outras palavras ou desmarque “Só normas vigentes”.");
     atualizarFluxo();
+    if (primeiraVez) $("ia").scrollIntoView({ block: "start", behavior: "smooth" });   // leva direto ao passo da IA
   }
 };
 
@@ -610,15 +637,13 @@ function buscar(consulta) {
   worker.postMessage({ tipo: "buscar", id: contador, consulta, soVigentes: $("vigentes").checked, tipoNorma: $("tipo").value, limite: TOTAL_DA_BUSCA });
 }
 
-$("form").onsubmit = (e) => { e.preventDefault(); adicionarTema($("q").value.trim()); };
-$("form-p").onsubmit = (e) => { e.preventDefault(); adicionarPergunta(); };
-$("ir-geral").onclick = fazerConsultaGeral;
+$("form").onsubmit = (e) => { e.preventDefault(); enviarDuvida(false); };
+$("ir-geral").onclick = () => enviarDuvida(true);
 $("q").oninput = atualizarFluxo;
-$("pergunta").oninput = atualizarFluxo;
-$("pergunta").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); adicionarPergunta(); } };
+$("q").onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviarDuvida(false); } };
 function filtroMudou() {
   $("so-precedentes").setAttribute("aria-pressed", String($("tipo").value === "precedentes-sumulas"));
-  if (temaAdd) buscar(temaAdd);
+  if (temaAdd) { contarExibidos = false; buscar(temaAdd); }
   atualizarFluxo();
 }
 $("vigentes").onchange = $("tipo").onchange = filtroMudou;
@@ -626,14 +651,31 @@ $("so-precedentes").onclick = () => {   // liga e desliga: um novo clique volta 
   $("tipo").value = $("tipo").value === "precedentes-sumulas" ? "" : "precedentes-sumulas";
   filtroMudou();
 };
-$("ia-chatgpt").onclick = () => { contarEvento("abrir-chatgpt"); perguntarIA("https://chatgpt.com/"); };
-$("ia-gemini").onclick = () => { contarEvento("abrir-gemini"); perguntarIA("https://gemini.google.com/app"); };
-$("ia-copiar").onclick = () => { contarEvento("copiar-prompt"); perguntarIA(null); };
-$("ia-precedentes").onclick = () => { contarEvento("copiar-prompt-precedentes"); perguntarIA(null, true); };
+$("ia-chatgpt").onclick = () => { contarEvento("abrir-janela-ia"); perguntarIA(null); };
+$("ia-precedentes").onclick = () => { contarEvento("abrir-janela-precedentes"); perguntarIA(null, true); };
+$("j-copiar").onclick = copiarDaJanela;
+$("j-chatgpt").onclick = () => { contarEvento("abrir-chatgpt"); window.open("https://chatgpt.com/", "_blank", "noopener"); };
+$("j-gemini").onclick = () => { contarEvento("abrir-gemini"); window.open("https://gemini.google.com/app", "_blank", "noopener"); };
+$("j-fechar").onclick = () => $("janela-ia").close();
 $("estender").onclick = () => perguntarIA(null, !!envio && envio.precedentes, true);
 document.querySelectorAll("#exemplos button").forEach((b) => {
-  b.onclick = () => { $("q").value = b.textContent; adicionarTema(b.textContent); };
+  b.onclick = () => { contarEvento("exemplo"); $("q").value = b.textContent; enviarDuvida(true); };
 });
+
+// Barra fixa: aparece quando ha trechos e o quadro da IA saiu da tela (o usuario rolou para ler os trechos)
+let iaVisivel = true;
+function barraIA() {
+  const pronto = !!(textoAdd && ultimo && ultimo.res.length);
+  $("barra-ia").hidden = !pronto || iaVisivel;
+  document.body.classList.toggle("com-barra", !$("barra-ia").hidden);
+}
+if ("IntersectionObserver" in window) {
+  new IntersectionObserver(([e]) => { iaVisivel = e.isIntersecting; barraIA(); }).observe($("ia"));
+}
+$("barra-chatgpt").onclick = () => { contarEvento("abrir-janela-ia-barra"); perguntarIA(null); };
+
+// funil: clique no texto oficial de um trecho
+$("resultados").addEventListener("click", (e) => { if (e.target.closest("a")) contarEvento("ver-texto-oficial"); });
 
 // "Nao achei o que procurava": so envia com autorizacao, para um Google Forms. O botao fica oculto enquanto FORMULARIO.url estiver vazio.
 const FORMULARIO = { url: "https://docs.google.com/forms/d/e/1FAIpQLScmWbI0UclJ7fsQ0ObCJFdgFpzwMo1vpnnWc7OEVMEltM5iVw/formResponse",
@@ -722,7 +764,25 @@ async function carregarBase(semModelo) {
   }
 }
 
-const semModelo = new URLSearchParams(location.search).has("leve") ||
-  (navigator.connection && (navigator.connection.saveData || /2g/.test(navigator.connection.effectiveType || "")));
-if (semModelo) modeloMsg = "Modo leve: só busca por palavras.";
-carregarBase(semModelo);
+// Busca inteligente (cerca de 120 MB): baixa sozinha, tambem nos dados moveis (decisao do Carlos, 14/11/2026).
+// So fica de fora com "?leve" na URL ou com economia de dados/2G ligada no aparelho, como antes.
+// O botao "Ativar busca inteligente" aparece apenas nesses casos, para quem quiser baixar mesmo assim.
+let semModelo = "";
+async function decidirModelo() {
+  if (new URLSearchParams(location.search).has("leve")) return "leve";
+  const c = navigator.connection;
+  if (c && (c.saveData || /2g/.test(c.effectiveType || ""))) return "adiado";
+  return "";
+}
+$("ligar-modelo").onclick = () => {
+  contarEvento("ativar-busca-inteligente");
+  $("ligar-modelo").hidden = true; semModelo = ""; modeloMsg = "";
+  painel("A busca já funciona. Aprimorando a busca inteligente…", 0, "Cerca de 120 MB, só desta vez: depois fica guardado no aparelho.");
+  worker.postMessage({ tipo: "ligarModelo" });
+};
+decidirModelo().then((d) => {
+  semModelo = d;
+  if (d === "leve") modeloMsg = "Modo leve: só busca por palavras.";
+  if (d === "adiado") modeloMsg = "Busca por palavras (economia de dados ligada).";
+  carregarBase(!!d);
+});

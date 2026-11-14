@@ -226,3 +226,50 @@ mark { background: var(--marca-texto); color: inherit; border-radius: 3px; paddi
   .ia-botoes button { flex: 1 1 100%; }
 }
 .ia-limite { font-size: .85rem; color: var(--suave); margin: 8px 0 0; }
+
+/* caixa unica de duvida (0.9.19) */
+.campo-duvida textarea, .busca-inicio textarea {
+  display: block; width: 100%; box-sizing: border-box; min-height: 64px; font: inherit; font-size: 1.05rem; padding: 10px 14px; resize: vertical;
+  border: 1px solid var(--borda-forte); border-radius: 10px; background: var(--cartao); color: var(--texto);
+}
+.campo-duvida textarea::placeholder, .busca-inicio textarea::placeholder { color: var(--suave); opacity: .85; }
+.botoes-duvida { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.botoes-duvida button { flex: 1 1 200px; }
+/* passo da IA: um botao principal e opcoes secundarias */
+.ia-valor { margin: 0 0 10px; font-size: .97rem; }
+.ia-botoes button.ia-principal { flex: 1 1 100%; font-size: 1.1rem; min-height: 54px; }
+.ia-outras { display: flex; flex-wrap: wrap; gap: 8px; flex: 1 1 100%; }
+.ia-outras button { flex: 1 1 160px; }
+.ia-aviso { font-size: 1rem; }
+.ia-aviso ol { margin: 6px 0 0; padding-left: 22px; }
+.ia-aviso li { margin: 2px 0; }
+/* barra fixa no rodape da tela */
+.barra-ia {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; gap: 8px; justify-content: center;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: var(--cartao); border-top: 1px solid var(--borda-forte);
+  box-shadow: 0 -4px 16px rgba(28, 35, 42, .12);
+}
+.barra-ia[hidden] { display: none; }
+.barra-ia button { flex: 0 1 auto; }
+.barra-ia #barra-chatgpt { flex: 1 1 auto; max-width: 420px; }
+body.com-barra { padding-bottom: 84px; }
+/* busca na pagina inicial */
+.busca-inicio { max-width: 560px; margin: 16px auto 0; text-align: left; }
+.busca-inicio button { width: 100%; margin-top: 8px; }
+
+/* janela "Leve sua duvida a IA" (0.9.19) */
+.janela-ia { width: calc(100% - 24px); max-width: 600px; max-height: calc(100dvh - 24px); overflow: auto; box-sizing: border-box;
+  border: 1px solid var(--borda); border-radius: 12px; background: var(--cartao); color: inherit; padding: 16px; }
+.janela-ia::backdrop { background: rgba(28, 35, 42, .55); }
+.j-topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.j-topo h2 { margin: 0; font: 600 1.2rem/1.25 var(--titulo); }
+.j-nota { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--cartao-2); border: 1px solid var(--borda); font-size: .9rem; }
+.j-passos { margin: 12px 0 0; padding-left: 22px; display: grid; gap: 14px; }
+.j-passos li::marker { font-weight: 700; color: var(--primaria); }
+.j-texto { display: block; width: 100%; box-sizing: border-box; height: 130px; margin-top: 8px; font: .8rem/1.4 ui-monospace, Consolas, monospace; padding: 8px;
+  border: 1px solid var(--borda); border-radius: 8px; background: var(--cartao-2); color: var(--texto); resize: vertical; }
+.j-copiar { width: 100%; margin-top: 8px; font-size: 1.1rem; min-height: 52px; }
+button.j-copiar.copiado, button.j-copiar.copiado:hover { background: var(--vigente); color: #fff; }
+.j-copiado { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; font-weight: 600; font-size: .95rem; color: var(--vigente); background: var(--vigente-fundo); }
+.j-ias { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.j-ias button { flex: 1 1 160px; min-height: 48px; }

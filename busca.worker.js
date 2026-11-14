@@ -479,6 +479,7 @@ onmessage = (e) => {
   if (m.tipo === "sinonimos") carregarSinonimos(m.grupos);
   else if (m.tipo === "parte") receberParte(m);
   else if (m.tipo === "fim") concluirCarga(m.semModelo);
+  else if (m.tipo === "ligarModelo") { if (!extrator) carregarModelo(); }
   else if (m.tipo === "buscar") buscar(m).catch((e) => {
     console.error("[busca] falha na busca:", e);
     postMessage({ tipo: "resultado", id: m.id, modo: "erro", res: [], termos: [] });
