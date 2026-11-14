@@ -273,3 +273,7 @@ button.j-copiar.copiado, button.j-copiar.copiado:hover { background: var(--vigen
 .j-copiado { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; font-weight: 600; font-size: .95rem; color: var(--vigente); background: var(--vigente-fundo); }
 .j-ias { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .j-ias button { flex: 1 1 160px; min-height: 48px; }
+
+/* botao secundario com fundo azul-claro: vazado parecia desativado (0.9.20) */
+button.secundario:not(:disabled) { background: var(--primaria-fundo); }
+button.secundario:hover:not(:disabled) { background: var(--primaria-fundo); filter: brightness(.94); }
