@@ -1,7 +1,7 @@
 // Interface do Oraculo: conversa com o worker de busca e monta os cartoes e o pedido para a IA.
 
 const $ = (id) => document.getElementById(id);
-const VERSAO = "f38ea8e24497";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
+const VERSAO = "e2cee6a480df";   // preenchida por publicar_site.ps1 na copia publicada; vazia no teste local
 const worker = new Worker("busca.worker.js" + (VERSAO ? `?v=${VERSAO}` : ""), { type: "module" });
 
 // Depois de uma publicacao, quem esta com a pagina antiga no cache recarrega uma vez, na versao nova.
@@ -589,6 +589,7 @@ worker.onerror = (e) => {
 
 worker.onmessage = (e) => {
   const m = e.data;
+  if (m.tipo === "base-inconsistente") { if (m.id === cargaId) repetirCarga(m.motivo); return; }
   if (m.tipo === "pronto") {
     baseOk = true;
     $("q").disabled = false; $("ir").disabled = false; $("ir-geral").disabled = false;
@@ -737,27 +738,55 @@ async function baixar(url, tentativas = 4) {
   }
 }
 
+// Logo depois de uma publicacao, o GitHub Pages pode servir por um minuto arquivos de versoes diferentes
+// (indice_info.json novo com vetores antigos, ou o contrario). A carga e conferida aqui e no worker; se nao
+// bater, baixa tudo de novo com endereco novo (fura o cache), ate 3 vezes, e so entao pede para recarregar.
+const DIM_VETOR = 384;
+const MAX_REPETICOES = 3;
+let cargaId = 0, cargaRepeticoes = 0, cargaSemModelo = false;
+
+function repetirCarga(motivo) {
+  console.warn("[busca] base com arquivos de versões diferentes:", motivo);
+  if (cargaRepeticoes >= MAX_REPETICOES) {
+    painel(null);
+    $("estado").textContent = "O site está sendo atualizado agora. Recarregue a página em um minuto.";
+    return;
+  }
+  cargaRepeticoes++;
+  cargaId++;   // descarta mensagens e partes da carga anterior
+  painel("Aguarde: o site acabou de ser atualizado, baixando a versão nova…", 0);
+  setTimeout(() => carregarBase(cargaSemModelo), 4000 * cargaRepeticoes);
+}
+
 async function carregarBase(semModelo) {
+  cargaSemModelo = semModelo;
+  const id = ++cargaId;
   try {
     const info = JSON.parse(new TextDecoder().decode(await baixar("dados/indice_info.json?" + Date.now())));
-    const v = "?v=" + info.versao;   // muda a cada nova base, para o cache do navegador nao servir a antiga
+    // muda a cada nova base, para o cache do navegador nao servir a antiga; na repeticao, endereco novo
+    const v = "?v=" + info.versao + (cargaRepeticoes ? "&r=" + Date.now() : "");
     try {   // sem o dicionario a busca funciona igual, so sem as equivalencias
       const sin = JSON.parse(new TextDecoder().decode(await baixar("dados/sinonimos.json?" + Date.now(), 2)));
       worker.postMessage({ tipo: "sinonimos", grupos: sin.grupos });
     } catch (e) { console.warn("[busca] sem dicionario de equivalencias", e); }
     const normasBuf = await baixar("dados/normas.json" + v);
-    worker.postMessage({ tipo: "parte", normasBuf, total: info.trechos }, [normasBuf]);
+    if (id !== cargaId) return;
+    worker.postMessage({ tipo: "parte", normasBuf, total: info.trechos, nNormas: info.normas, id }, [normasBuf]);
     let feitos = 0;
     for (let p = 0; p < info.partes.length; p++) {
       const trechosBuf = await baixar(`dados/trechos_${p}.json${v}`);
       const vetoresBuf = await baixar(`dados/vetores_${p}.i8${v}`);
-      worker.postMessage({ tipo: "parte", trechosBuf, vetoresBuf, n: info.partes[p] }, [trechosBuf, vetoresBuf]);
+      if (id !== cargaId) return;   // o worker ja apontou diferenca e outra carga comecou
+      if (vetoresBuf.byteLength !== info.partes[p] * DIM_VETOR)
+        return repetirCarga(`vetores_${p}: ${vetoresBuf.byteLength / DIM_VETOR} vetores, esperado ${info.partes[p]}`);
+      worker.postMessage({ tipo: "parte", trechosBuf, vetoresBuf, n: info.partes[p], parte: p, id }, [trechosBuf, vetoresBuf]);
       feitos += info.partes[p];
       painel("Aguarde: carregando a base de normas…", Math.round(100 * feitos / info.trechos));
     }
     painel("Aguarde: montando o índice de busca…", 100);
-    worker.postMessage({ tipo: "fim", semModelo });
+    worker.postMessage({ tipo: "fim", semModelo, id });
   } catch (e) {
+    if (id !== cargaId) return;
     console.error("[busca]", e);
     painel(null);
     $("estado").textContent = "Não foi possível baixar a base de normas. Verifique a conexão e recarregue a página.";

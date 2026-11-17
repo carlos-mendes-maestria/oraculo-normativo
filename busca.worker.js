@@ -189,13 +189,29 @@ async function carregarModelo() {
 
 // A base e baixada pela pagina (app.js) e chega aqui em partes, como ArrayBuffer transferido.
 const leitor = new TextDecoder();
-let feitos = 0;
+let feitos = 0, carga = 0, inconsistente = false;
 
-function receberParte({ normasBuf, total, trechosBuf, vetoresBuf, n }) {
-  if (normasBuf) { normas = JSON.parse(leitor.decode(normasBuf)); vetores = new Int8Array(total * DIM); return; }
-  for (const t of JSON.parse(leitor.decode(trechosBuf))) trechos.push(t);
+// Logo depois de uma publicacao, o GitHub Pages pode entregar arquivos de versoes diferentes (ele ignora o ?v=).
+// Cada parte e conferida com o indice_info.json; se nao bater, a pagina baixa tudo de novo (app.js, repetirCarga).
+function receberParte({ normasBuf, total, nNormas, trechosBuf, vetoresBuf, n, parte, id }) {
+  if (normasBuf) {
+    carga = id; inconsistente = false; feitos = 0; trechos = [];
+    normas = JSON.parse(leitor.decode(normasBuf)); vetores = new Int8Array(total * DIM);
+    if (nNormas && normas.length !== nNormas) avisarInconsistencia(`normas.json com ${normas.length} normas, esperado ${nNormas}`);
+    return;
+  }
+  if (id !== carga || inconsistente) return;
+  const lote = JSON.parse(leitor.decode(trechosBuf));
+  if (lote.length !== n || vetoresBuf.byteLength !== n * DIM || (feitos + n) * DIM > vetores.length)
+    return avisarInconsistencia(`parte ${parte}: ${lote.length} trechos e ${vetoresBuf.byteLength / DIM} vetores, esperado ${n}`);
+  for (const t of lote) trechos.push(t);
   vetores.set(new Int8Array(vetoresBuf), feitos * DIM);
   feitos += n;
+}
+
+function avisarInconsistencia(motivo) {
+  inconsistente = true;
+  postMessage({ tipo: "base-inconsistente", id: carga, motivo });
 }
 
 // ---------------------------------------------------------------- remissoes entre normas
@@ -478,7 +494,7 @@ onmessage = (e) => {
   const m = e.data;
   if (m.tipo === "sinonimos") carregarSinonimos(m.grupos);
   else if (m.tipo === "parte") receberParte(m);
-  else if (m.tipo === "fim") concluirCarga(m.semModelo);
+  else if (m.tipo === "fim") { if (m.id === carga && !inconsistente) concluirCarga(m.semModelo); }
   else if (m.tipo === "ligarModelo") { if (!extrator) carregarModelo(); }
   else if (m.tipo === "buscar") buscar(m).catch((e) => {
     console.error("[busca] falha na busca:", e);
