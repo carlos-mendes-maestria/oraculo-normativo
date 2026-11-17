@@ -1,7 +1,7 @@
 {
  "modelo": "Xenova/multilingual-e5-small (onnx/model_quantized.onnx)",
  "dimensao": 384,
- "trechos": 28877,
+ "trechos": 28884,
  "normas": 1745,
  "vigentes": 1582,
  "partes": [
@@ -12,8 +12,8 @@
   4000,
   4000,
   4000,
-  877
+  884
  ],
- "versao": "c828f16b7acc",
- "gerado_em": "2026-11-09 21:16"
+ "versao": "9163e51027fd",
+ "gerado_em": "2026-11-17 10:19"
 }
